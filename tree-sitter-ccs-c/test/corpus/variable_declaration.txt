@@ -1,0 +1,14 @@
+==================
+Variable declaration
+==================
+
+int i = 69;
+
+---
+
+(translation_unit
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (number_literal))))
