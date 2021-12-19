@@ -7,3 +7,5 @@ edition = "2018"
 
 [dependencies]
 tower-lsp = "0.14.1"
+tree-sitter-ccsc = {path = "tree-sitter-ccs-c"}
+tree-sitter = "^0.20.0"
