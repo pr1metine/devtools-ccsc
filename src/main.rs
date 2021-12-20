@@ -10,27 +10,26 @@ fn main() {
     let tree = parser.parse(input, None).unwrap();
     let mut cursor = tree.walk();
 
-    // let new_line_idxs = input
-    //     .chars()
-    //     .enumerate()
-    //     .filter(|(_, c)| *c == '\n')
-    //     .map(|(i, _)| i)
-    //     .collect::<Vec<usize>>();
-
     println!("root: {}", cursor.node().kind());
 
     while cursor
-        .goto_first_child_for_point(Point::new(8, 22))
+        .goto_first_child_for_point(Point::new(6, 14))
         .is_some()
     {
+        if cursor.node().kind() != "function_definition" {
+            continue;
+        }
+
         println!(
-            "child: {} -> {}",
-            cursor.node().kind(),
-            cursor.field_name().unwrap_or("()")
-        );
-        println!(
-            "{}",
-            &input[cursor.node().start_byte()..cursor.node().end_byte()]
+            "function name: {}",
+            cursor
+                .node()
+                .child_by_field_name("declarator")
+                .unwrap()
+                .child_by_field_name("declarator")
+                .unwrap()
+                .utf8_text(input.as_bytes())
+                .unwrap()
         );
     }
 }
