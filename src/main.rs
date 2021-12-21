@@ -1,4 +1,4 @@
-use tower_lsp::jsonrpc::Result;
+use tower_lsp::jsonrpc::{Result, ErrorCode, Error};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -9,13 +9,13 @@ struct Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
-        Ok(InitializeResult::default())
+    async fn initialize(&self, _init: InitializeParams) -> Result<InitializeResult> {
+        Err(Error::new(ErrorCode::InternalError))
     }
 
     async fn initialized(&self, _: InitializedParams) {
         self.client
-            .log_message(MessageType::Info, "server initialized!")
+            .log_message(MessageType::Info, "Server initialized. LSP yet to be fully implemented.")
             .await;
     }
 

@@ -5,14 +5,13 @@ import {
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
-    TransportKind
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
-    window.showInformationMessage('Hello World!');
-    let executable = context.asAbsolutePath(path.join('..', 'target', 'debug', 'lsp-ccs-c'));
+    window.showInformationMessage('CCS C LSP active!');
+    let executable = context.asAbsolutePath(path.join('..', 'target', 'release', 'lsp-ccs-c'));
 
     let serverOptions: ServerOptions = {
         run: {
@@ -27,7 +26,6 @@ export function activate(context: ExtensionContext) {
         documentSelector: [{ scheme: 'file', language: 'ccsc' }],
     };
 
-    // Create the language client and start the client.
     client = new LanguageClient(
         'lsp-ccs-c',
         'CCS C Language Server',
@@ -35,7 +33,6 @@ export function activate(context: ExtensionContext) {
         clientOptions
     );
 
-    // Start the client. This will also launch the server
     client.start();
 }
 
