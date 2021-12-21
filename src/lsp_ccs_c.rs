@@ -6,7 +6,7 @@ use tree_sitter::{Parser, Tree};
 
 pub struct BackendData {
     root_uri: Url,
-    trees: HashMap<Url, Tree>,
+    pub trees: HashMap<Url, Tree>,
     parser: Parser,
 }
 
@@ -14,6 +14,7 @@ impl BackendData {
     pub fn set_root_uri(&mut self, root_uri: Url) {
         self.root_uri = root_uri;
     }
+
 }
 
 impl Default for BackendData {
@@ -44,12 +45,12 @@ impl Backend {
         }
     }
 
+
     pub fn get_client(&self) -> &Client {
         &self.client
     }
 
-    pub fn get_data(&self) -> Arc<Mutex<BackendData>> {
-        self.data.clone()
+    pub fn get_data(&self) -> &Arc<Mutex<BackendData>> {
+        &self.data
     }
 }
-

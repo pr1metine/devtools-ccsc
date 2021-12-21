@@ -10,7 +10,6 @@ import {
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
-    window.showInformationMessage('CCS C LSP active!');
     let executable = context.asAbsolutePath(path.join('..', 'target', 'debug', 'lsp-ccs-c'));
 
     let serverOptions: ServerOptions = {
@@ -34,6 +33,7 @@ export function activate(context: ExtensionContext) {
     );
 
     client.start();
+    window.showInformationMessage('CCS C LSP active!');
 }
 
 export function deactivate(): Thenable<void> | undefined {

@@ -2,6 +2,9 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{LanguageServer, LspService, Server};
 
+use std::fs;
+use std::path::Path;
+
 mod lsp_ccs_c;
 
 #[tower_lsp::async_trait]
@@ -9,10 +12,30 @@ impl LanguageServer for lsp_ccs_c::Backend {
     async fn initialize(&self, init: InitializeParams) -> Result<InitializeResult> {
         let root_uri = init.root_uri.ok_or(Error::new(ErrorCode::InvalidRequest))?;
 
-        self.get_client().log_message(
-            MessageType::Info,
-            format!("Initializing server... root_uri = {}", root_uri).as_str(),
-        ).await;
+        if root_uri.scheme() != "file" {
+            return Err(Error::new(ErrorCode::InternalError));
+        }
+
+        self.get_client()
+            .log_message(MessageType::Info, "Initializing server...")
+            .await;
+
+
+        let mut file_log = String::from(format!("Root URI: {}", root_uri));
+        for sth in fs::read_dir(Path::new(root_uri.path()))
+            .map_err(|_| Error::new(ErrorCode::InternalError))?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|e| e.as_path().extension().is_some())
+            .filter(|e| e.as_path().extension().unwrap() == "c")
+        {
+            file_log.push('\n');
+            file_log.push_str(format!("c file found! {}", sth.display()).as_str());
+        }
+
+        self.get_client()
+            .log_message(MessageType::Info, file_log.as_str())
+            .await;
 
         let data_lock = self.get_data();
         let mut data = data_lock.lock().unwrap();
@@ -37,6 +60,24 @@ impl LanguageServer for lsp_ccs_c::Backend {
             .log_message(
                 MessageType::Info,
                 "Server initialized. LSP yet to be fully implemented.",
+            )
+            .await;
+    }
+
+    async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        self.get_client()
+            .log_message(
+                MessageType::Info,
+                format!("Received did_open for {}", params.text_document.uri).as_str(),
+            )
+            .await;
+    }
+
+    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        self.get_client()
+            .log_message(
+                MessageType::Info,
+                format!("Received did_change for {}", params.text_document.uri).as_str(),
             )
             .await;
     }
