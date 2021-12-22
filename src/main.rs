@@ -1,9 +1,9 @@
-use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
-use tower_lsp::lsp_types::*;
-use tower_lsp::{LanguageServer, LspService, Server};
-
 use std::fs;
 use std::path::Path;
+
+use tower_lsp::{LanguageServer, LspService, Server};
+use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
+use tower_lsp::lsp_types::*;
 
 mod lsp_ccs_c;
 
@@ -52,6 +52,7 @@ impl LanguageServer for lsp_ccs_c::Backend {
                 name: "lsp-ccs-c".to_string(),
                 version: Some("0.1.0".to_string()),
             }),
+            ..Default::default()
         })
     }
 
@@ -62,6 +63,10 @@ impl LanguageServer for lsp_ccs_c::Backend {
                 "Server initialized. LSP yet to be fully implemented.",
             )
             .await;
+    }
+
+    async fn shutdown(&self) -> Result<()> {
+        Ok(())
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -80,10 +85,6 @@ impl LanguageServer for lsp_ccs_c::Backend {
                 format!("Received did_change for {}", params.text_document.uri).as_str(),
             )
             .await;
-    }
-
-    async fn shutdown(&self) -> Result<()> {
-        Ok(())
     }
 }
 

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tower_lsp::lsp_types::Url;
+
 use tower_lsp::Client;
+use tower_lsp::lsp_types::Url;
 use tree_sitter::{Parser, Tree};
 
 pub struct BackendData {
@@ -14,7 +15,6 @@ impl BackendData {
     pub fn set_root_uri(&mut self, root_uri: Url) {
         self.root_uri = root_uri;
     }
-
 }
 
 impl Default for BackendData {
