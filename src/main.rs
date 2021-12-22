@@ -5,10 +5,10 @@ use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 
-mod lsp_ccs_c;
+mod server;
 
 #[tower_lsp::async_trait]
-impl LanguageServer for lsp_ccs_c::Backend {
+impl LanguageServer for server::Backend {
     async fn initialize(&self, init: InitializeParams) -> Result<InitializeResult> {
         let root_uri = init.root_uri.ok_or(Error::new(ErrorCode::InvalidRequest))?;
 
@@ -93,7 +93,7 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, messages) = LspService::new(|client| lsp_ccs_c::Backend::new(client));
+    let (service, messages) = LspService::new(|client| server::Backend::new(client));
     Server::new(stdin, stdout)
         .interleave(messages)
         .serve(service)
