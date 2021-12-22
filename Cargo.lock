@@ -245,7 +245,6 @@ dependencies = [
 name = "lsp-ccs-c"
 version = "0.1.0"
 dependencies = [
- "percent-encoding",
  "tokio",
  "tower-lsp",
  "tree-sitter",

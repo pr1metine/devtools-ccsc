@@ -2,16 +2,12 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 
-use tower_lsp::{LanguageServer, LspService, Server};
-use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::jsonrpc::ErrorCode::InternalError;
+use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
-use tree_sitter::{Point, TreeCursor};
+use tower_lsp::{LanguageServer, LspService, Server};
+use tree_sitter::Point;
 
-use crate::request::{
-    GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
-    GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
-};
 use crate::server::TextDocument;
 
 mod server;
@@ -19,7 +15,9 @@ mod server;
 #[tower_lsp::async_trait]
 impl LanguageServer for server::Backend {
     async fn initialize(&self, init: InitializeParams) -> Result<InitializeResult> {
-        let root_uri = init.root_uri.ok_or(Error::new(ErrorCode::InvalidParams))?;
+        let root_uri = init
+            .root_uri
+            .ok_or_else(|| Error::new(ErrorCode::InvalidParams))?;
 
         if root_uri.scheme() != "file" {
             return Err(Error::new(ErrorCode::InvalidParams));
@@ -35,7 +33,7 @@ impl LanguageServer for server::Backend {
             )
             .await;
 
-        let mut log_file = String::from(format!("Root URI: {}", root_uri));
+        let mut log_file = format!("Root URI: {}", root_uri);
 
         {
             let data_lock = self.get_data();
@@ -47,16 +45,16 @@ impl LanguageServer for server::Backend {
                     .map_err(|_e| Error::new(ErrorCode::ParseError))?
                     .as_path(),
             )
-                .map_err(|e| Error {
-                    code: ErrorCode::ServerError(69),
-                    message: e.to_string(),
-                    data: None,
-                })?
-                .filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .filter(|e| e.as_path().extension().is_some())
-                .filter(|e| e.as_path().extension().unwrap() == "c")
-                .filter(|e| e.to_str().is_some())
+            .map_err(|e| Error {
+                code: ErrorCode::ServerError(69),
+                message: e.to_string(),
+                data: None,
+            })?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|e| e.as_path().extension().is_some())
+            .filter(|e| e.as_path().extension().unwrap() == "c")
+            .filter(|e| e.to_str().is_some())
             {
                 let mut raw = String::new();
                 let mut file =
@@ -66,7 +64,7 @@ impl LanguageServer for server::Backend {
                 let syntax_tree = data
                     .parser
                     .parse(raw.as_bytes(), None)
-                    .ok_or(Error::new(InternalError))?;
+                    .ok_or_else(|| Error::new(InternalError))?;
 
                 log_file.push('\n');
                 log_file.push_str(c_path.to_str().unwrap());
@@ -100,7 +98,6 @@ impl LanguageServer for server::Backend {
                 name: "lsp-ccs-c".to_string(),
                 version: Some("0.1.0".to_string()),
             }),
-            ..Default::default()
         })
     }
 
@@ -120,21 +117,24 @@ impl LanguageServer for server::Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let HoverParams {
             text_document_position_params:
-            TextDocumentPositionParams {
-                position: Position { line, character },
-                text_document: TextDocumentIdentifier { uri },
-            },
+                TextDocumentPositionParams {
+                    position: Position { line, character },
+                    text_document: TextDocumentIdentifier { uri },
+                },
             ..
         } = params;
 
-        let mut data = self.get_data().lock().unwrap();
+        let data = self.get_data().lock().unwrap();
 
         let tree = &data
             .trees
-            .get(&uri.to_file_path().map_err(|_e| Error::new(ErrorCode::InternalError))?)
+            .get(
+                &uri.to_file_path()
+                    .map_err(|_e| Error::new(ErrorCode::InternalError))?,
+            )
             .ok_or(Error {
                 code: ErrorCode::ServerError(69420),
-                message: format!("URI ({}) not found!", uri.as_str()).to_string(),
+                message: format!("URI ({}) not found!", uri.as_str()),
                 data: None,
             })?
             .syntax_tree;
@@ -182,7 +182,7 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, messages) = LspService::new(|client| server::Backend::new(client));
+    let (service, messages) = LspService::new(server::Backend::new);
     Server::new(stdin, stdout)
         .interleave(messages)
         .serve(service)
