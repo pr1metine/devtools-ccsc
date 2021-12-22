@@ -10,30 +10,38 @@ mod server;
 #[tower_lsp::async_trait]
 impl LanguageServer for server::Backend {
     async fn initialize(&self, init: InitializeParams) -> Result<InitializeResult> {
-        let root_uri = init.root_uri.ok_or(Error::new(ErrorCode::InvalidRequest))?;
+        let root_uri = init.root_uri.ok_or(Error::new(ErrorCode::InvalidParams))?;
 
-        if root_uri.scheme() != "file" { return Err(Error::new(ErrorCode::InternalError)); }
+        if root_uri.scheme() != "file" { return Err(Error::new(ErrorCode::InvalidParams)); }
 
         self.get_client()
-            .log_message(MessageType::Info, "Initializing server...")
+            .log_message(MessageType::Info, format!("Initializing server... Received Root URI '{}'", root_uri.as_str()))
             .await;
 
 
-        {
-            let mut log_file = String::from(format!("Root URI: {}", root_uri));
-            let stub = Url::parse("file://").unwrap();
+        let mut log_file = String::from(format!("Root URI: {}", root_uri));
 
+        {
             let data_lock = self.get_data();
             let mut data = data_lock.lock().unwrap();
 
-            for c_file_url in fs::read_dir(Path::new(root_uri.path()))
-                .map_err(|_| Error::new(ErrorCode::InternalError))?
+            for c_file_url in fs::read_dir(
+                root_uri
+                    .to_file_path()
+                    .map_err(|_e| Error::new(ErrorCode::ParseError))?
+                    .as_path()
+            )
+                .map_err(|e| Error {
+                    code: ErrorCode::ServerError(69),
+                    message: e.to_string(),
+                    data: None,
+                })?
                 .filter_map(|e| e.ok())
                 .map(|e| e.path())
                 .filter(|e| e.as_path().extension().is_some())
                 .filter(|e| e.as_path().extension().unwrap() == "c")
                 .filter(|e| e.to_str().is_some())
-                .filter_map(|e| stub.join(e.to_str().unwrap()).ok())
+                .filter_map(|e| Url::from_file_path(e.as_path()).ok())
             {
                 log_file.push('\n');
                 log_file.push_str(format!("c file found! {}", c_file_url.as_str()).as_str());
