@@ -12,34 +12,43 @@ impl LanguageServer for server::Backend {
     async fn initialize(&self, init: InitializeParams) -> Result<InitializeResult> {
         let root_uri = init.root_uri.ok_or(Error::new(ErrorCode::InvalidRequest))?;
 
-        if root_uri.scheme() != "file" {
-            return Err(Error::new(ErrorCode::InternalError));
-        }
+        if root_uri.scheme() != "file" { return Err(Error::new(ErrorCode::InternalError)); }
 
         self.get_client()
             .log_message(MessageType::Info, "Initializing server...")
             .await;
 
 
-        let mut file_log = String::from(format!("Root URI: {}", root_uri));
-        for sth in fs::read_dir(Path::new(root_uri.path()))
-            .map_err(|_| Error::new(ErrorCode::InternalError))?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|e| e.as_path().extension().is_some())
-            .filter(|e| e.as_path().extension().unwrap() == "c")
         {
-            file_log.push('\n');
-            file_log.push_str(format!("c file found! {}", sth.display()).as_str());
+            let mut log_file = String::from(format!("Root URI: {}", root_uri));
+            let stub = Url::parse("file://").unwrap();
+
+            let data_lock = self.get_data();
+            let mut data = data_lock.lock().unwrap();
+
+            for c_file_url in fs::read_dir(Path::new(root_uri.path()))
+                .map_err(|_| Error::new(ErrorCode::InternalError))?
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|e| e.as_path().extension().is_some())
+                .filter(|e| e.as_path().extension().unwrap() == "c")
+                .filter(|e| e.to_str().is_some())
+                .filter_map(|e| stub.join(e.to_str().unwrap()).ok())
+            {
+                log_file.push('\n');
+                log_file.push_str(format!("c file found! {}", c_file_url.as_str()).as_str());
+                // let c_file_path = Path::new(c_file_url.path());
+                // let tree = data.
+            }
+
+            data.set_root_uri(root_uri);
         }
 
+
         self.get_client()
-            .log_message(MessageType::Info, file_log.as_str())
+            .log_message(MessageType::Info, log_file.as_str())
             .await;
 
-        let data_lock = self.get_data();
-        let mut data = data_lock.lock().unwrap();
-        data.set_root_uri(root_uri);
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -67,24 +76,6 @@ impl LanguageServer for server::Backend {
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
-    }
-
-    async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.get_client()
-            .log_message(
-                MessageType::Info,
-                format!("Received did_open for {}", params.text_document.uri).as_str(),
-            )
-            .await;
-    }
-
-    async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        self.get_client()
-            .log_message(
-                MessageType::Info,
-                format!("Received did_change for {}", params.text_document.uri).as_str(),
-            )
-            .await;
     }
 }
 
