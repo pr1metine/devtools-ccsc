@@ -1,16 +1,15 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 
-use tower_lsp::Client;
 use tower_lsp::lsp_types::Url;
-use tree_sitter::{Parser, Tree};
+use tree_sitter::Parser;
 
 use crate::server::text_document::TextDocument;
 
 pub struct BackendData {
     root_uri: Url,
-    pub trees: HashMap<Url, TextDocument>,
-    parser: Parser,
+    pub trees: HashMap<PathBuf, TextDocument>,
+    pub parser: Parser,
 }
 
 impl BackendData {

@@ -1,8 +1,9 @@
-use tower_lsp::lsp_types::Url;
+use std::path::PathBuf;
+
 use tree_sitter::Tree;
 
 pub struct TextDocument {
-    uri: Url,
-    raw: String,
-    syntax_tree: Tree,
+    pub path: PathBuf,
+    pub raw: String,
+    pub syntax_tree: Tree,
 }

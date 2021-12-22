@@ -1,9 +1,7 @@
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tower_lsp::Client;
-use tower_lsp::lsp_types::Url;
-use tree_sitter::{Parser, Tree};
+use tree_sitter::Parser;
 
 use crate::server::backend_data::BackendData;
 
@@ -22,7 +20,6 @@ impl Backend {
             data: Arc::new(Mutex::new(Default::default())),
         }
     }
-
 
     pub fn get_client(&self) -> &Client {
         &self.client
