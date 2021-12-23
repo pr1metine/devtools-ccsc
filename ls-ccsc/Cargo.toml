@@ -11,3 +11,4 @@ tower-lsp = "~0.14.1"
 
 tree-sitter-ccsc = { path = "../tree-sitter-ccsc" }
 tree-sitter = "~0.20.0"
+rust-ini = "~0.17"

@@ -2,13 +2,14 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 
-use tower_lsp::jsonrpc::ErrorCode::InternalError;
-use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
-use tower_lsp::lsp_types::*;
+use ini::Ini;
 use tower_lsp::{LanguageServer, LspService, Server};
+use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
+use tower_lsp::jsonrpc::ErrorCode::InternalError;
+use tower_lsp::lsp_types::*;
 use tree_sitter::Point;
 
-use crate::server::TextDocument;
+use crate::server::{Backend, MPLABProjectConfig, TextDocument};
 
 mod server;
 
@@ -33,58 +34,20 @@ impl LanguageServer for server::Backend {
             )
             .await;
 
-        let mut log_file = format!("Root URI: {}", root_uri);
+        let root_path = root_uri.to_file_path().map_err(|_| {
+            Backend::create_server_error(1, "Failed to resolve Root URI".to_owned())
+        })?;
 
-        {
-            let data_lock = self.get_data();
-            let mut data = data_lock.lock().unwrap();
+        let ini = Ini::load_from_file(
+            Backend::find_mcp_file(&root_path).map_err(|_e| Backend::create_server_error(2, _e))?,
+        )
+            .map_err(|_e| Backend::create_server_error(3, _e.to_string()))?;
 
-            for c_path in fs::read_dir(
-                root_uri
-                    .to_file_path()
-                    .map_err(|_e| Error::new(ErrorCode::ParseError))?
-                    .as_path(),
-            )
-            .map_err(|e| Error {
-                code: ErrorCode::ServerError(69),
-                message: e.to_string(),
-                data: None,
-            })?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|e| e.as_path().extension().is_some())
-            .filter(|e| e.as_path().extension().unwrap() == "c")
-            .filter(|e| e.to_str().is_some())
-            {
-                let mut raw = String::new();
-                let mut file =
-                    File::open(c_path.as_path()).map_err(|_e| Error::new(InternalError))?;
-                file.read_to_string(&mut raw)
-                    .map_err(|_e| Error::new(InternalError))?;
-                let syntax_tree = data
-                    .parser
-                    .parse(raw.as_bytes(), None)
-                    .ok_or_else(|| Error::new(InternalError))?;
 
-                log_file.push('\n');
-                log_file.push_str(c_path.to_str().unwrap());
-
-                data.trees.insert(
-                    c_path.clone(),
-                    TextDocument {
-                        path: c_path,
-                        raw,
-                        syntax_tree,
-                    },
-                );
-            }
-
-            data.set_root_uri(root_uri);
-        }
-
-        self.get_client()
-            .log_message(MessageType::Info, log_file.as_str())
-            .await;
+        let mut data = self.get_data().lock().unwrap();
+        let config = MPLABProjectConfig::from_ini_with_root(&ini, root_path, &mut data.parser)
+            .map_err(|_e| Backend::create_server_error(4, _e))?;
+        data.mplab = Some(config);
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -127,7 +90,10 @@ impl LanguageServer for server::Backend {
         let data = self.get_data().lock().unwrap();
 
         let tree = &data
-            .trees
+            .mplab
+            .as_ref()
+            .ok_or(Backend::create_server_error(5, "MPLAB Config has not been loaded...".into()))?
+            .files
             .get(
                 &uri.to_file_path()
                     .map_err(|_e| Error::new(ErrorCode::InternalError))?,
@@ -137,7 +103,10 @@ impl LanguageServer for server::Backend {
                 message: format!("URI ({}) not found!", uri.as_str()),
                 data: None,
             })?
-            .syntax_tree;
+            .syntax_tree
+            .as_ref()
+            .ok_or_else(|| Error::new(ErrorCode::ServerError(666)))?;
+
         let row = line as usize;
         let column = character as usize;
         let pos = Point { row, column };
