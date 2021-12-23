@@ -1,8 +1,8 @@
 {
-    "name": "vscode-ccs-c",
+    "name": "vscode-ccsc",
     "displayName": "CCS C Language Support",
     "description": "LSP, Debugging for code written with the CCS C Compiler used for PIC MCUs",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "engines": {
         "vscode": "^1.63.0"
     },
@@ -15,7 +15,6 @@
             {
                 "id": "ccsc",
                 "aliases": [
-                    "ccsc",
                     "CCS C"
                 ],
                 "extensions": [
