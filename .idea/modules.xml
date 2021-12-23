@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/ls-ccsc/ls-ccsc.iml" filepath="$PROJECT_DIR$/ls-ccsc/ls-ccsc.iml" />
+      <module fileurl="file://$PROJECT_DIR$/tree-sitter-ccsc/tree-sitter-ccsc.iml" filepath="$PROJECT_DIR$/tree-sitter-ccsc/tree-sitter-ccsc.iml" />
+    </modules>
+  </component>
+</project>
