@@ -1,0 +1,137 @@
+CCS PCM C Compiler, Version 5.105Pd, 1               22-Dez-21 13:54
+Compiler operating in Evaluation Mode
+To obtain a fully enabled compiler visit www.ccsinfo.com/products
+
+               Filename:   C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\main.lst
+
+               ROM used:   81 words (2%)
+                           Largest free fragment is 2048
+               RAM used:   8 (3%) at main() level
+                           9 (4%) worst case
+               Stack used: 0 locations
+               Stack size: 8
+
+*
+0000:  MOVLW  00
+0001:  MOVWF  0A
+0002:  GOTO   01F
+0003:  NOP
+.................... #include <16F883.h>
+.................... //////////// Standard Header file for the PIC16F883 device ////////////////
+.................... ///////////////////////////////////////////////////////////////////////////
+.................... ////        (C) Copyright 1996, 2020 Custom Computer Services          ////
+.................... //// This source code may only be used by licensed users of the CCS C  ////
+.................... //// compiler.  This source code may only be distributed to other      ////
+.................... //// licensed users of the CCS C compiler.  No other use, reproduction ////
+.................... //// or distribution is permitted without written permission.          ////
+.................... //// Derivative programs created using this software in object code    ////
+.................... //// form are not restricted in any way.                               ////
+.................... ///////////////////////////////////////////////////////////////////////////
+.................... #device PIC16F883
+.................... 
+.................... #list
+.................... 
+.................... 
+.................... #fuses XT, NOWDT
+.................... #use delay(clock=4Mhz)
+*
+0009:  MOVLW  23
+000A:  MOVWF  04
+000B:  BCF    03.7
+000C:  MOVF   00,W
+000D:  BTFSC  03.2
+000E:  GOTO   01D
+000F:  MOVLW  01
+0010:  MOVWF  78
+0011:  CLRF   77
+0012:  DECFSZ 77,F
+0013:  GOTO   012
+0014:  DECFSZ 78,F
+0015:  GOTO   011
+0016:  MOVLW  4A
+0017:  MOVWF  77
+0018:  DECFSZ 77,F
+0019:  GOTO   018
+001A:  GOTO   01B
+001B:  DECFSZ 00,F
+001C:  GOTO   00F
+001D:  BCF    0A.3
+001E:  GOTO   04D (RETURN)
+.................... 
+.................... #include "sth/add.h"
+.................... 
+.................... int add(int a, int b) {
+.................... 	return a + b;
+*
+0004:  MOVF   23,W
+0005:  ADDWF  22,W
+0006:  MOVWF  78
+0007:  BCF    0A.3
+0008:  GOTO   03F (RETURN)
+.................... }
+.................... 
+.................... 
+.................... void main() {
+*
+001F:  MOVF   03,W
+0020:  ANDLW  1F
+0021:  MOVWF  03
+0022:  MOVLW  FF
+0023:  MOVWF  20
+0024:  BSF    03.5
+0025:  BSF    03.6
+0026:  MOVF   09,W
+0027:  ANDLW  C0
+0028:  MOVWF  09
+0029:  BCF    03.6
+002A:  BCF    1F.4
+002B:  BCF    1F.5
+002C:  MOVLW  00
+002D:  BSF    03.6
+002E:  MOVWF  08
+002F:  BCF    03.5
+0030:  CLRF   07
+0031:  CLRF   08
+0032:  CLRF   09
+0033:  BCF    03.7
+.................... 	output_low(PIN_C0);
+0034:  BCF    03.6
+0035:  BCF    20.0
+0036:  MOVF   20,W
+0037:  BSF    03.5
+0038:  MOVWF  07
+0039:  BCF    03.5
+003A:  BCF    07.0
+.................... 	
+.................... 	int c = add(4, 4);
+003B:  MOVLW  04
+003C:  MOVWF  22
+003D:  MOVWF  23
+003E:  GOTO   004
+003F:  MOVF   78,W
+0040:  MOVWF  21
+.................... 	for (;;) {
+.................... 		output_toggle(PIN_C0);
+0041:  BCF    20.0
+0042:  MOVF   20,W
+0043:  BSF    03.5
+0044:  MOVWF  07
+0045:  MOVLW  01
+0046:  BCF    03.5
+0047:  XORWF  07,F
+.................... 		delay_ms(500);
+0048:  MOVLW  02
+0049:  MOVWF  22
+004A:  MOVLW  FA
+004B:  MOVWF  23
+004C:  GOTO   009
+004D:  DECFSZ 22,F
+004E:  GOTO   04A
+004F:  GOTO   041
+.................... 	}
+.................... }
+0050:  SLEEP
+
+Configuration Fuses:
+   Word  1: 2FE1   XT NOWDT PUT MCLR NOPROTECT NOCPD BROWNOUT IESO FCMEN NOLVP NODEBUG
+   Word  2: 3FFF   BORV40 NOWRT

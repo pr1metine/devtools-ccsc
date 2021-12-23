@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use ini::{Ini, Properties};
 use tree_sitter::Parser;
 
-use crate::{Backend, TextDocument};
+use crate::TextDocument;
 
 pub struct MPLABProjectConfig {
     pub file_version: String,

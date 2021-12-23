@@ -1,0 +1,40 @@
+_RETURN_
+CCP_1
+CCP_1_LOW
+CCP_1_HIGH
+CCP_2
+CCP_2_LOW
+CCP_2_HIGH
+C1OUT
+C2OUT
+@TRIS_C
+
+Project Directory:
+    C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\
+
+Project Files:
+    main.c                                                  [22-Dez-21 13:53  CRC=D872A938]
+    ..\..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h [12-Jul-21 11:35  CRC=31E9B441]
+
+Source signature=3C4611BA
+
+Units:
+    C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\main
+
+Compiler Settings:
+    Processor:      PIC16F883
+    Pointer Size:   16
+    ADC Range:      0-255
+    Opt Level:      9
+    Short,Int,Long: UNSIGNED: 1,8,16
+    Float,Double:   32,32
+    Output file:    Relocatable
+    Compile Mode:   CCS5
+
+Compiler operating in Evaluation Mode
+To obtain a fully enabled compiler visit www.ccsinfo.com/products
+
+Output Files:
+    Errors:      main.err
+    Object:      main.o
+    Symbols:     main.osym
