@@ -5,5 +5,5 @@ pub use crate::server::text_document::*;
 
 pub mod backend;
 pub mod backend_data;
-pub mod text_document;
 pub mod mplab_project_config;
+pub mod text_document;

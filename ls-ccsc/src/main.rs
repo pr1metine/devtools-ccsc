@@ -4,9 +4,10 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tree_sitter::Point;
 
-use crate::server::{Backend, MPLABProjectConfig, TextDocument};
+use crate::server::{MPLABProjectConfig, TextDocument};
 
 mod server;
+mod utils;
 
 #[tower_lsp::async_trait]
 impl LanguageServer for server::Backend {
@@ -29,19 +30,18 @@ impl LanguageServer for server::Backend {
             )
             .await;
 
-        let root_path = root_uri.to_file_path().map_err(|_| {
-            Backend::create_server_error(1, "Failed to resolve Root URI".to_owned())
-        })?;
+        let root_path = root_uri
+            .to_file_path()
+            .map_err(|_| utils::create_server_error(1, "Failed to resolve Root URI".to_owned()))?;
 
         let ini = Ini::load_from_file(
-            Backend::find_mcp_file(&root_path).map_err(|_e| Backend::create_server_error(2, _e))?,
+            utils::find_mcp_file(&root_path).map_err(|_e| utils::create_server_error(2, _e))?,
         )
-            .map_err(|_e| Backend::create_server_error(3, _e.to_string()))?;
-
+            .map_err(|_e| utils::create_server_error(3, _e.to_string()))?;
 
         let mut data = self.get_data().lock().unwrap();
         let config = MPLABProjectConfig::from_ini_with_root(&ini, root_path, &mut data.parser)
-            .map_err(|_e| Backend::create_server_error(4, _e))?;
+            .map_err(|_e| utils::create_server_error(4, _e))?;
         data.mplab = Some(config);
 
         Ok(InitializeResult {
@@ -87,7 +87,10 @@ impl LanguageServer for server::Backend {
         let tree = &data
             .mplab
             .as_ref()
-            .ok_or(Backend::create_server_error(5, "MPLAB Config has not been loaded...".into()))?
+            .ok_or(utils::create_server_error(
+                5,
+                "MPLAB Config has not been loaded...".into(),
+            ))?
             .files
             .get(
                 &uri.to_file_path()
