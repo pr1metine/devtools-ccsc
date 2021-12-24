@@ -7,7 +7,6 @@ use tower_lsp::jsonrpc::Result;
 use tree_sitter::Parser;
 
 use crate::{MPLABProjectConfig, TextDocument, Url, utils};
-use crate::server::MPLABFile;
 
 pub fn create_server_error(code: i64, message: String) -> Error {
     let code = ErrorCode::ServerError(code);

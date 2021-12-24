@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use tower_lsp::Client;
 use tower_lsp::lsp_types::MessageType;
@@ -32,11 +32,11 @@ impl Backend {
         &self.client
     }
 
-    pub fn get_data(&self) -> &Arc<Mutex<BackendData>> {
-        &self.data
+    pub fn get_data(&self) -> MutexGuard<BackendData> {
+        self.data.lock().unwrap()
     }
 
-    pub fn get_parser(&self) -> &Arc<Mutex<Parser>> {
-        return &self.parser;
+    pub fn get_parser(&self) -> MutexGuard<Parser> {
+        self.parser.lock().unwrap()
     }
 }

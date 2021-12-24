@@ -33,10 +33,10 @@ impl LanguageServer for server::Backend {
         let ini = get_mcp_ini(&root_path)?;
         let config = MPLABProjectConfig::from_ini_to_lsp_result(&ini)?;
 
-        let mut parser = self.get_parser().lock().unwrap();
+        let mut parser = self.get_parser();
         let docs = utils::generate_text_documents(&config, &root_path, parser.deref_mut())?;
 
-        let mut data = self.get_data().lock().unwrap();
+        let mut data = self.get_data();
         data.set_root_path(root_path);
         data.set_mcp(config);
         data.insert_docs(docs);
@@ -101,7 +101,7 @@ impl LanguageServer for server::Backend {
             ..
         } = params;
 
-        let data = self.get_data().lock().unwrap();
+        let data = self.get_data();
 
         let tree = data.get_doc(&get_path(uri)?)?.get_syntax_tree()?;
 

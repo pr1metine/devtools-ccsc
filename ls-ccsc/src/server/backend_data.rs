@@ -17,6 +17,7 @@ impl BackendData {
         self.root_path = Some(root_path);
     }
 
+    #[allow(dead_code)]
     pub fn get_root_path(&self) -> Result<&PathBuf> {
         self.root_path
             .as_ref()
@@ -27,6 +28,7 @@ impl BackendData {
         self.mcp = Some(mplab);
     }
 
+    #[allow(dead_code)]
     pub fn get_mcp(&self) -> Result<&MPLABProjectConfig> {
         self.mcp.as_ref().ok_or(utils::create_server_error(
             4,
