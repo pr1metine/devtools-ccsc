@@ -1,12 +1,33 @@
 use std::path::PathBuf;
 
+use tower_lsp::jsonrpc::Result;
 use tree_sitter::Tree;
 
-#[derive(Default)]
+use crate::utils;
+
+#[derive(Debug, Clone, Default)]
 pub struct TextDocument {
     pub absolute_path: PathBuf,
     pub raw: String,
     pub syntax_tree: Option<Tree>,
-    pub is_other: bool,
-    pub is_generated: bool,
+}
+
+impl TextDocument {
+    pub fn new(absolute_path: PathBuf, raw: String, syntax_tree: Option<Tree>) -> TextDocument {
+        TextDocument {
+            absolute_path,
+            raw,
+            syntax_tree,
+        }
+    }
+
+    pub fn get_syntax_tree(&self) -> Result<&Tree> {
+        self.syntax_tree.as_ref().ok_or(utils::create_server_error(
+            7,
+            format!(
+                "No syntax tree found for file '{}'",
+                self.absolute_path.display()
+            ),
+        ))
+    }
 }

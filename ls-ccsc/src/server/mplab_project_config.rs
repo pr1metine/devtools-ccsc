@@ -1,27 +1,40 @@
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
-use std::path::PathBuf;
 
 use ini::{Ini, Properties};
-use tree_sitter::Parser;
+use tower_lsp::jsonrpc;
 
-use crate::TextDocument;
+use crate::utils;
+
+pub struct MPLABFile {
+    pub path: String,
+    pub is_other: bool,
+    pub is_generated: bool,
+}
+
+impl MPLABFile {
+    fn new(path: String) -> Self {
+        Self {
+            path,
+            is_other: false,
+            is_generated: false,
+        }
+    }
+}
 
 pub struct MPLABProjectConfig {
     pub file_version: String,
     pub device: String,
-    pub files: HashMap<PathBuf, TextDocument>,
+    pub files: HashMap<String, MPLABFile>,
     pub suite_guid: String,
     pub tool_settings: Vec<(String, String)>,
 }
 
 impl MPLABProjectConfig {
-    pub fn from_ini_with_root(
-        ini: &Ini,
-        root: PathBuf,
-        parser: &mut Parser,
-    ) -> Result<Self, String> {
+    pub fn from_ini_to_lsp_result(ini: &Ini) -> jsonrpc::Result<Self> {
+        MPLABProjectConfig::from_ini(ini).map_err(|e| utils::create_server_error(2, e))
+    }
+
+    pub fn from_ini(ini: &Ini) -> Result<Self, String> {
         fn get_section<'i>(ini: &'i Ini, section: &'static str) -> Result<&'i Properties, String> {
             Ok(ini
                 .section(Some(section))
@@ -34,6 +47,59 @@ impl MPLABProjectConfig {
                     .ok_or(format!("INI field '{}' not found...", field))?,
             ))
         }
+        fn get_all_fields_in_section(
+            ini: &Ini,
+            section: &'static str,
+        ) -> Result<Vec<(String, String)>, String> {
+            Ok(get_section(ini, section)?
+                .iter()
+                .map(|(k, v)| (String::from(k), String::from(v)))
+                .collect())
+        }
+        fn get_files(ini: &Ini) -> Result<HashMap<String, MPLABFile>, String> {
+            fn get_file_names<'a>(
+                ini: &'a Ini,
+                mut files: HashMap<&'a str, MPLABFile>,
+            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+                for (key, value) in get_section(ini, "FILE_INFO")?.iter() {
+                    files.insert(key, MPLABFile::new(value.to_owned()));
+                }
+                Ok(files)
+            }
+            fn add_is_generated<'a>(
+                ini: &'a Ini,
+                mut files: HashMap<&'a str, MPLABFile>,
+            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+                for (key, value) in get_section(ini, "GENERATED_FILES")?.iter() {
+                    if value.contains("$(ProjectDir)") {
+                        files.get_mut(key).unwrap().is_generated = true;
+                    }
+                }
+                Ok(files)
+            }
+            fn add_is_other<'a>(
+                ini: &'a Ini,
+                mut files: HashMap<&'a str, MPLABFile>,
+            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+                for (key, value) in get_section(ini, "OTHER_FILES")?.iter() {
+                    files
+                        .get_mut(key)
+                        .ok_or(format!("File key '{}' not found...", key))?
+                        .is_other = value == "yes";
+                }
+                Ok(files)
+            }
+            fn key_to_owned(files: HashMap<&str, MPLABFile>) -> HashMap<String, MPLABFile> {
+                files.into_iter().map(|(k, v)| (k.to_owned(), v)).collect()
+            }
+
+            let files = HashMap::new();
+            let files = get_file_names(ini, files)?;
+            let files = add_is_other(ini, files)?;
+            let files = add_is_generated(ini, files)?;
+
+            Ok(key_to_owned(files))
+        }
 
         let header = get_section(ini, "HEADER")?;
         let file_version = get_field(header, "file_version")?;
@@ -42,97 +108,8 @@ impl MPLABProjectConfig {
         let suite_info = get_section(ini, "SUITE_INFO")?;
         let suite_guid = get_field(suite_info, "suite_guid")?;
 
-        let tool_settings = get_section(ini, "TOOL_SETTINGS")?;
-        let tool_settings = tool_settings
-            .iter()
-            .map(|(s1, s2)| (String::from(s1), String::from(s2)))
-            .collect();
-
-        let mut files = HashMap::new();
-        for (key, value) in get_section(ini, "FILE_INFO")?.iter() {
-            let mut absolute_path = root.clone();
-            absolute_path.push(value);
-
-            files.entry(key).or_insert(TextDocument {
-                absolute_path,
-                ..Default::default()
-            });
-        }
-
-        for (key, value) in get_section(ini, "OTHER_FILES")?.iter() {
-            files
-                .get_mut(key)
-                .ok_or(format!("File key '{}' not found...", key))?
-                .is_other = value == "yes";
-        }
-
-        for (key, value) in get_section(ini, "GENERATED_FILES")?.iter() {
-            files
-                .get_mut(key)
-                .ok_or(format!("File key '{}' not found...", key))?
-                .is_generated = value == "yes";
-        }
-
-        let mut files = files
-            .into_iter()
-            .map(|(_, doc)| (doc.absolute_path.clone(), doc))
-            // .map(|(absolute_path, mut doc)| {
-            //     // let mut file = File::open(absolute_path.as_path()).map_err(|e| {
-            //     //     format!(
-            //     //         "Cannot open file '{}' ('{}')",
-            //     //         absolute_path.display(),
-            //     //         e.to_string()
-            //     //     )
-            //     // })?;
-            //     // let mut raw = String::new();
-            //     //
-            //     // file.read_to_string(&mut raw).map_err(|_e| {
-            //     //     format!(
-            //     //         "Cannot read file '{}' ('{}')",
-            //     //         absolute_path.display(),
-            //     //         _e.to_string()
-            //     //     )
-            //     // })?;
-            //     //
-            //     // let syntax_tree = Some(
-            //     //     parser
-            //     //         .parse(raw.as_bytes(), None)
-            //     //         .ok_or("Could not create syntax tree for '{}'...")?,
-            //     // );
-            //     (absolute_path, doc)
-            // })
-            .collect::<HashMap<_, _>>();
-
-        for (absolute_path, doc) in files
-            .iter_mut()
-            .filter(|(_, doc)| !(doc.is_generated || doc.is_other))
-        {
-            let mut file = File::open(absolute_path.as_path()).map_err(|e| {
-                format!(
-                    "Cannot open file '{}' ('{}')",
-                    absolute_path.display(),
-                    e.to_string()
-                )
-            })?;
-            let mut raw = String::new();
-
-            file.read_to_string(&mut raw).map_err(|_e| {
-                format!(
-                    "Cannot read file '{}' ('{}')",
-                    absolute_path.display(),
-                    _e.to_string()
-                )
-            })?;
-
-            let syntax_tree = Some(
-                parser
-                    .parse(raw.as_bytes(), None)
-                    .ok_or("Could not create syntax tree for '{}'...")?,
-            );
-
-            doc.syntax_tree = syntax_tree;
-            doc.raw = raw;
-        }
+        let tool_settings = get_all_fields_in_section(ini, "TOOL_SETTINGS")?;
+        let files = get_files(ini)?;
 
         Ok(Self {
             file_version,

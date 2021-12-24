@@ -1,22 +1,62 @@
-use tower_lsp::lsp_types::Url;
-use tree_sitter::Parser;
+use std::collections::HashMap;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
+use tower_lsp::jsonrpc::Result;
+use tree_sitter::{Parser, Tree};
+
+use crate::{TextDocument, utils};
 use crate::server::mplab_project_config::MPLABProjectConfig;
 
 pub struct BackendData {
-    pub root_uri: Url,
-    pub mplab: Option<MPLABProjectConfig>,
-    pub parser: Parser,
+    root_path: Option<PathBuf>,
+    mcp: Option<MPLABProjectConfig>,
+    pub docs: HashMap<PathBuf, TextDocument>,
+}
+
+impl BackendData {
+    pub fn set_root_path(&mut self, root_path: PathBuf) {
+        self.root_path = Some(root_path);
+    }
+
+    pub fn get_root_path(&self) -> Result<&PathBuf> {
+        self.root_path
+            .as_ref()
+            .ok_or(utils::create_server_error(5, "No root path set".to_owned()))
+    }
+
+    pub fn set_mcp(&mut self, mplab: MPLABProjectConfig) {
+        self.mcp = Some(mplab);
+    }
+
+    pub fn get_mcp(&self) -> Result<&MPLABProjectConfig> {
+        self.mcp.as_ref().ok_or(utils::create_server_error(
+            5,
+            "No mplab project config set".to_owned(),
+        ))
+    }
+
+    pub fn insert_docs(&mut self, docs: HashMap<PathBuf, TextDocument>) {
+        docs.into_iter().for_each(|(path, doc)| {
+            self.docs.insert(path, doc);
+        });
+    }
+
+    pub fn get_doc(&self, path: &PathBuf) -> Result<&TextDocument> {
+        self.docs.get(path).ok_or(utils::create_server_error(
+            5,
+            format!("No document found for path: {}", path.display()),
+        ))
+    }
 }
 
 impl Default for BackendData {
     fn default() -> Self {
-        let mut parser = Parser::new();
-        parser.set_language(tree_sitter_ccsc::language()).unwrap();
         Self {
-            root_uri: Url::parse("file:///").unwrap(),
-            mplab: None,
-            parser,
+            root_path: None,
+            mcp: None,
+            docs: HashMap::new(),
         }
     }
 }

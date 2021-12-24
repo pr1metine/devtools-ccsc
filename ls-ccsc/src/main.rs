@@ -1,3 +1,6 @@
+use std::ops::DerefMut;
+use std::path::PathBuf;
+
 use ini::Ini;
 use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
@@ -5,6 +8,7 @@ use tower_lsp::lsp_types::*;
 use tree_sitter::Point;
 
 use crate::server::{MPLABProjectConfig, TextDocument};
+use crate::utils::get_path;
 
 mod server;
 mod utils;
@@ -12,37 +16,34 @@ mod utils;
 #[tower_lsp::async_trait]
 impl LanguageServer for server::Backend {
     async fn initialize(&self, init: InitializeParams) -> Result<InitializeResult> {
-        let root_uri = init
-            .root_uri
-            .ok_or_else(|| Error::new(ErrorCode::InvalidParams))?;
+        fn get_path_from_option(uri: Option<Url>) -> Result<PathBuf> {
+            let uri = uri.ok_or_else(|| Error::new(ErrorCode::InvalidParams))?;
 
-        if root_uri.scheme() != "file" {
-            return Err(Error::new(ErrorCode::InvalidParams));
+            Ok(utils::get_path(uri)?)
+        }
+        fn get_mcp_ini(path: &PathBuf) -> Result<Ini> {
+            let ini = Ini::load_from_file(utils::find_mcp_file(path)?).map_err(|_| {
+                utils::create_server_error(1, "Failed to load MPLAB Project Config".to_owned())
+            })?;
+
+            Ok(ini)
         }
 
-        self.get_client()
-            .log_message(
-                MessageType::Info,
-                format!(
-                    "Initializing server... Received Root URI '{}'",
-                    root_uri.as_str()
-                ),
-            )
-            .await;
+        self.info("Initializing...".to_owned()).await;
 
-        let root_path = root_uri
-            .to_file_path()
-            .map_err(|_| utils::create_server_error(1, "Failed to resolve Root URI".to_owned()))?;
-
-        let ini = Ini::load_from_file(
-            utils::find_mcp_file(&root_path).map_err(|_e| utils::create_server_error(2, _e))?,
-        )
-            .map_err(|_e| utils::create_server_error(3, _e.to_string()))?;
+        let root_path = get_path_from_option(init.root_uri)?;
+        let ini = get_mcp_ini(&root_path)?;
+        let config = MPLABProjectConfig::from_ini_to_lsp_result(&ini)?;
+        let docs = utils::generate_text_documents(
+            &config,
+            &root_path,
+            self.get_parser().lock().unwrap().deref_mut(),
+        )?;
 
         let mut data = self.get_data().lock().unwrap();
-        let config = MPLABProjectConfig::from_ini_with_root(&ini, root_path, &mut data.parser)
-            .map_err(|_e| utils::create_server_error(4, _e))?;
-        data.mplab = Some(config);
+        data.set_root_path(root_path);
+        data.set_mcp(config);
+        data.insert_docs(docs);
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -60,11 +61,7 @@ impl LanguageServer for server::Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        self.get_client()
-            .log_message(
-                MessageType::Info,
-                "Server initialized. LSP yet to be fully implemented.",
-            )
+        self.info("Server initialized. LSP yet to be fully implemented.".to_owned())
             .await;
     }
 
@@ -75,35 +72,18 @@ impl LanguageServer for server::Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let HoverParams {
             text_document_position_params:
-                TextDocumentPositionParams {
-                    position: Position { line, character },
-                    text_document: TextDocumentIdentifier { uri },
-                },
+            TextDocumentPositionParams {
+                position: Position { line, character },
+                text_document: TextDocumentIdentifier { uri },
+            },
             ..
         } = params;
 
         let data = self.get_data().lock().unwrap();
 
-        let tree = &data
-            .mplab
-            .as_ref()
-            .ok_or(utils::create_server_error(
-                5,
-                "MPLAB Config has not been loaded...".into(),
-            ))?
-            .files
-            .get(
-                &uri.to_file_path()
-                    .map_err(|_e| Error::new(ErrorCode::InternalError))?,
-            )
-            .ok_or(Error {
-                code: ErrorCode::ServerError(69420),
-                message: format!("URI ({}) not found!", uri.as_str()),
-                data: None,
-            })?
-            .syntax_tree
-            .as_ref()
-            .ok_or_else(|| Error::new(ErrorCode::ServerError(666)))?;
+        let tree = data
+            .get_doc(&get_path(uri)?)?
+            .get_syntax_tree()?;
 
         let row = line as usize;
         let column = character as usize;
@@ -113,6 +93,7 @@ impl LanguageServer for server::Backend {
         while cursor.goto_first_child_for_point(pos).is_some() {}
 
         let node = cursor.node();
+
         let Point {
             row: start_line,
             column: start_character,
