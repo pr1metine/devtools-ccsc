@@ -1,10 +1,7 @@
 use std::collections::HashMap;
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 
 use tower_lsp::jsonrpc::Result;
-use tree_sitter::{Parser, Tree};
 
 use crate::{TextDocument, utils};
 use crate::server::mplab_project_config::MPLABProjectConfig;
@@ -12,7 +9,7 @@ use crate::server::mplab_project_config::MPLABProjectConfig;
 pub struct BackendData {
     root_path: Option<PathBuf>,
     mcp: Option<MPLABProjectConfig>,
-    pub docs: HashMap<PathBuf, TextDocument>,
+    docs: HashMap<PathBuf, TextDocument>,
 }
 
 impl BackendData {
@@ -23,7 +20,7 @@ impl BackendData {
     pub fn get_root_path(&self) -> Result<&PathBuf> {
         self.root_path
             .as_ref()
-            .ok_or(utils::create_server_error(5, "No root path set".to_owned()))
+            .ok_or(utils::create_server_error(4, "No root path set".to_owned()))
     }
 
     pub fn set_mcp(&mut self, mplab: MPLABProjectConfig) {
@@ -32,7 +29,7 @@ impl BackendData {
 
     pub fn get_mcp(&self) -> Result<&MPLABProjectConfig> {
         self.mcp.as_ref().ok_or(utils::create_server_error(
-            5,
+            4,
             "No mplab project config set".to_owned(),
         ))
     }
@@ -45,7 +42,7 @@ impl BackendData {
 
     pub fn get_doc(&self, path: &PathBuf) -> Result<&TextDocument> {
         self.docs.get(path).ok_or(utils::create_server_error(
-            5,
+            4,
             format!("No document found for path: {}", path.display()),
         ))
     }

@@ -31,7 +31,7 @@ pub struct MPLABProjectConfig {
 
 impl MPLABProjectConfig {
     pub fn from_ini_to_lsp_result(ini: &Ini) -> jsonrpc::Result<Self> {
-        MPLABProjectConfig::from_ini(ini).map_err(|e| utils::create_server_error(2, e))
+        MPLABProjectConfig::from_ini(ini).map_err(|e| utils::create_server_error(5, e))
     }
 
     pub fn from_ini(ini: &Ini) -> Result<Self, String> {

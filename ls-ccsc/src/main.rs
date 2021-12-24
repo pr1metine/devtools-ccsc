@@ -29,16 +29,12 @@ impl LanguageServer for server::Backend {
             Ok(ini)
         }
 
-        self.info("Initializing...".to_owned()).await;
-
         let root_path = get_path_from_option(init.root_uri)?;
         let ini = get_mcp_ini(&root_path)?;
         let config = MPLABProjectConfig::from_ini_to_lsp_result(&ini)?;
-        let docs = utils::generate_text_documents(
-            &config,
-            &root_path,
-            self.get_parser().lock().unwrap().deref_mut(),
-        )?;
+
+        let mut parser = self.get_parser().lock().unwrap();
+        let docs = utils::generate_text_documents(&config, &root_path, parser.deref_mut())?;
 
         let mut data = self.get_data().lock().unwrap();
         data.set_root_path(root_path);
@@ -72,8 +68,16 @@ impl LanguageServer for server::Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         fn get_range(node: Node) -> Range {
             let tree_sitter::Range {
-                start_point: Point { row: start_line, column: start_character },
-                end_point: Point { row: stop_line, column: stop_character },
+                start_point:
+                Point {
+                    row: start_line,
+                    column: start_character,
+                },
+                end_point:
+                Point {
+                    row: stop_line,
+                    column: stop_character,
+                },
                 ..
             } = node.range();
             Range {
@@ -99,11 +103,12 @@ impl LanguageServer for server::Backend {
 
         let data = self.get_data().lock().unwrap();
 
-        let tree = data
-            .get_doc(&get_path(uri)?)?
-            .get_syntax_tree()?;
+        let tree = data.get_doc(&get_path(uri)?)?.get_syntax_tree()?;
 
-        let pos = Point { row: line as usize, column: character as usize };
+        let pos = Point {
+            row: line as usize,
+            column: character as usize,
+        };
 
         let mut cursor = tree.walk();
         while cursor.goto_first_child_for_point(pos).is_some() {}

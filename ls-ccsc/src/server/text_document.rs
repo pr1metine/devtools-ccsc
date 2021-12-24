@@ -23,7 +23,7 @@ impl TextDocument {
 
     pub fn get_syntax_tree(&self) -> Result<&Tree> {
         self.syntax_tree.as_ref().ok_or(utils::create_server_error(
-            7,
+            3,
             format!(
                 "No syntax tree found for file '{}'",
                 self.absolute_path.display()
