@@ -5,6 +5,12 @@ use tree_sitter::Tree;
 
 use crate::utils;
 
+pub enum TextDocumentType {
+    Ignored,
+    Source(TextDocument),
+    MCP(TextDocument), // TODO: MCP is not implemented yet
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TextDocument {
     pub absolute_path: PathBuf,

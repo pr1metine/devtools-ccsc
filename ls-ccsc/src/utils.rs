@@ -7,6 +7,7 @@ use tower_lsp::jsonrpc::Result;
 use tree_sitter::Parser;
 
 use crate::{MPLABProjectConfig, TextDocument, Url, utils};
+use crate::server::{MPLABFile, TextDocumentType};
 
 pub fn create_server_error(code: i64, message: String) -> Error {
     let code = ErrorCode::ServerError(code);
@@ -33,7 +34,7 @@ pub fn find_mcp_file(p: &PathBuf) -> Result<PathBuf> {
         ))?)
 }
 
-pub fn get_path(uri: Url) -> Result<PathBuf> {
+pub fn get_path(uri: &Url) -> Result<PathBuf> {
     let path = uri
         .to_file_path()
         .map_err(|_| utils::create_server_error(1, "Failed to resolve Root URI".to_owned()))?;
@@ -45,7 +46,7 @@ pub fn generate_text_documents(
     mcp: &MPLABProjectConfig,
     root_path: &PathBuf,
     parser: &mut Parser,
-) -> Result<HashMap<PathBuf, TextDocument>> {
+) -> Result<HashMap<PathBuf, TextDocumentType>> {
     fn read_string(path: &PathBuf) -> Result<String> {
         let mut file = std::fs::File::open(path).map_err(|e| {
             utils::create_server_error(
@@ -70,33 +71,51 @@ pub fn generate_text_documents(
         })?;
         Ok(contents)
     }
+    fn deconstruct_path(f: &MPLABFile, root_path: &PathBuf) -> (PathBuf, bool) {
+        let MPLABFile {
+            path,
+            is_generated,
+            is_other,
+            ..
+        } = f;
+        (root_path.join(path), *is_generated || *is_other)
+    }
+    fn insert_raw_string(tup: (PathBuf, bool)) -> Option<(PathBuf, String, bool)> {
+        read_string(&tup.0).map(|s| (tup.0, s, tup.1)).ok()
+    }
+    fn create_text_document_type(
+        tup: (PathBuf, String, bool),
+        parser: &mut Parser,
+    ) -> (PathBuf, TextDocumentType) {
+        let (p, raw, to_be_ignored) = tup;
+        let td = if !to_be_ignored && is_source_file(&p) {
+            let tree = parser.parse(&raw, None);
+            TextDocumentType::Source(TextDocument::new(p.clone(), raw, tree))
+        } else {
+            TextDocumentType::Ignored
+        };
 
-    let mut out = HashMap::new();
-
-    for doc in mcp
-        .files
-        .values()
-        .filter(|d| !(d.is_other || d.is_generated))
-    {
-        let path = root_path.join(&doc.path);
-
-        let extension = path.extension();
-        if extension.is_none() {
-            continue;
-        }
-
-        let extension = extension.unwrap();
-
-        if extension != "c" && extension != "cpp" && extension != "h" {
-            continue;
-        }
-
-        let raw = read_string(&path)?;
-
-        let tree = parser.parse(&raw, None);
-        // TODO: Make key a reference to TextDocument path
-        out.insert(path.clone(), TextDocument::new(path, raw, tree));
+        (p, td)
     }
 
+    let out = mcp
+        .files
+        .values()
+        .map(|f| deconstruct_path(f, root_path))
+        .filter_map(|tup| insert_raw_string(tup))
+        .map(|tup| create_text_document_type(tup, parser))
+        .collect::<HashMap<_, _>>();
+
     Ok(out)
+}
+
+pub fn is_source_file(path: &PathBuf) -> bool {
+    let extension = path.extension();
+    if extension.is_none() {
+        return false;
+    }
+
+    let extension = extension.unwrap();
+
+    extension == "c" || extension == "cpp" || extension == "h"
 }

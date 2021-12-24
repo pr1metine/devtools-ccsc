@@ -28,6 +28,10 @@ impl Backend {
         self.get_client().log_message(MessageType::Info, msg).await
     }
 
+    pub async fn error(&self, msg: String) {
+        self.get_client().log_message(MessageType::Error, msg).await
+    }
+
     pub fn get_client(&self) -> &Client {
         &self.client
     }

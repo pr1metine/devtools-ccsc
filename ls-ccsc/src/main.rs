@@ -7,8 +7,8 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Point};
 
-use crate::server::{MPLABProjectConfig, TextDocument};
-use crate::utils::get_path;
+use crate::server::{MPLABProjectConfig, TextDocument, TextDocumentType};
+use crate::utils::{get_path, is_source_file};
 
 mod server;
 mod utils;
@@ -19,7 +19,7 @@ impl LanguageServer for server::Backend {
         fn get_path_from_option(uri: Option<Url>) -> Result<PathBuf> {
             let uri = uri.ok_or_else(|| Error::new(ErrorCode::InvalidParams))?;
 
-            Ok(utils::get_path(uri)?)
+            Ok(utils::get_path(&uri)?)
         }
         fn get_mcp_ini(path: &PathBuf) -> Result<Ini> {
             let ini = Ini::load_from_file(utils::find_mcp_file(path)?).map_err(|_| {
@@ -35,6 +35,7 @@ impl LanguageServer for server::Backend {
 
         let mut parser = self.get_parser();
         let docs = utils::generate_text_documents(&config, &root_path, parser.deref_mut())?;
+        std::mem::drop(parser);
 
         let mut data = self.get_data();
         data.set_root_path(root_path);
@@ -63,6 +64,34 @@ impl LanguageServer for server::Backend {
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
+    }
+
+    async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        let DidOpenTextDocumentParams {
+            text_document: TextDocumentItem { uri, .. },
+        } = params;
+
+        let path = utils::get_path(&uri);
+
+        if path.is_err() {
+            self.error(format!("Failed to get path from uri: {}", uri))
+                .await;
+            return;
+        }
+
+        let path = path.unwrap();
+
+        if !is_source_file(&path) {
+            self.info(format!(
+                "File extension is not .c or .h: {}",
+                path.display()
+            ))
+                .await;
+            return;
+        }
+
+        let mut data = self.get_data();
+        data.docs.entry(path).or_insert(TextDocumentType::Ignored);
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
@@ -103,22 +132,27 @@ impl LanguageServer for server::Backend {
 
         let data = self.get_data();
 
-        let tree = data.get_doc(&get_path(uri)?)?.get_syntax_tree()?;
+        let out = match data.get_doc(&get_path(&uri)?)? {
+            TextDocumentType::Source(doc) => {
+                let tree = doc.get_syntax_tree()?;
+                let pos = Point {
+                    row: line as usize,
+                    column: character as usize,
+                };
+                let mut cursor = tree.walk();
+                while cursor.goto_first_child_for_point(pos).is_some() {}
 
-        let pos = Point {
-            row: line as usize,
-            column: character as usize,
+                let node = cursor.node();
+
+                Some(Hover {
+                    contents: HoverContents::Scalar(MarkedString::String(node.kind().into())),
+                    range: Some(get_range(node)),
+                })
+            }
+            _ => None,
         };
 
-        let mut cursor = tree.walk();
-        while cursor.goto_first_child_for_point(pos).is_some() {}
-
-        let node = cursor.node();
-
-        Ok(Some(Hover {
-            contents: HoverContents::Scalar(MarkedString::String(node.kind().into())),
-            range: Some(get_range(node)),
-        }))
+        Ok(out)
     }
 }
 

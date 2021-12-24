@@ -7,6 +7,7 @@ use crate::utils;
 
 pub struct MPLABFile {
     pub path: String,
+    pub subfolder: String,
     pub is_other: bool,
     pub is_generated: bool,
 }
@@ -15,12 +16,14 @@ impl MPLABFile {
     fn new(path: String) -> Self {
         Self {
             path,
+            subfolder: ".".to_owned(),
             is_other: false,
             is_generated: false,
         }
     }
 }
 
+// TODO: Implement more fields
 pub struct MPLABProjectConfig {
     pub file_version: String,
     pub device: String,
@@ -89,6 +92,18 @@ impl MPLABProjectConfig {
                 }
                 Ok(files)
             }
+            fn add_subfolder<'a>(
+                ini: &'a Ini,
+                mut files: HashMap<&'a str, MPLABFile>,
+            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+                for (key, value) in get_section(ini, "FILE_SUBFOLDERS")?.iter() {
+                    files
+                        .get_mut(key)
+                        .ok_or(format!("File key '{}' not found...", key))?
+                        .subfolder = value.to_owned();
+                }
+                Ok(files)
+            }
             fn key_to_owned(files: HashMap<&str, MPLABFile>) -> HashMap<String, MPLABFile> {
                 files.into_iter().map(|(k, v)| (k.to_owned(), v)).collect()
             }
@@ -97,6 +112,7 @@ impl MPLABProjectConfig {
             let files = get_file_names(ini, files)?;
             let files = add_is_other(ini, files)?;
             let files = add_is_generated(ini, files)?;
+            let files = add_subfolder(ini, files)?;
 
             Ok(key_to_owned(files))
         }

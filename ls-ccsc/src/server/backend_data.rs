@@ -3,13 +3,15 @@ use std::path::PathBuf;
 
 use tower_lsp::jsonrpc::Result;
 
-use crate::{TextDocument, utils};
 use crate::server::mplab_project_config::MPLABProjectConfig;
+use crate::server::TextDocumentType;
+use crate::utils;
 
+#[derive(Default)]
 pub struct BackendData {
     root_path: Option<PathBuf>,
     mcp: Option<MPLABProjectConfig>,
-    docs: HashMap<PathBuf, TextDocument>,
+    pub docs: HashMap<PathBuf, TextDocumentType>,
 }
 
 impl BackendData {
@@ -36,26 +38,16 @@ impl BackendData {
         ))
     }
 
-    pub fn insert_docs(&mut self, docs: HashMap<PathBuf, TextDocument>) {
+    pub fn insert_docs(&mut self, docs: HashMap<PathBuf, TextDocumentType>) {
         docs.into_iter().for_each(|(path, doc)| {
             self.docs.insert(path, doc);
         });
     }
 
-    pub fn get_doc(&self, path: &PathBuf) -> Result<&TextDocument> {
+    pub fn get_doc(&self, path: &PathBuf) -> Result<&TextDocumentType> {
         self.docs.get(path).ok_or(utils::create_server_error(
             4,
             format!("No document found for path: {}", path.display()),
         ))
-    }
-}
-
-impl Default for BackendData {
-    fn default() -> Self {
-        Self {
-            root_path: None,
-            mcp: None,
-            docs: HashMap::new(),
-        }
     }
 }
