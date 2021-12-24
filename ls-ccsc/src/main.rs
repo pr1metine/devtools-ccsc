@@ -5,7 +5,7 @@ use ini::Ini;
 use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
-use tree_sitter::Point;
+use tree_sitter::{Node, Point};
 
 use crate::server::{MPLABProjectConfig, TextDocument};
 use crate::utils::get_path;
@@ -70,6 +70,24 @@ impl LanguageServer for server::Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        fn get_range(node: Node) -> Range {
+            let tree_sitter::Range {
+                start_point: Point { row: start_line, column: start_character },
+                end_point: Point { row: stop_line, column: stop_character },
+                ..
+            } = node.range();
+            Range {
+                start: Position {
+                    line: start_line as u32,
+                    character: start_character as u32,
+                },
+                end: Position {
+                    line: stop_line as u32,
+                    character: stop_character as u32,
+                },
+            }
+        }
+
         let HoverParams {
             text_document_position_params:
             TextDocumentPositionParams {
@@ -85,42 +103,16 @@ impl LanguageServer for server::Backend {
             .get_doc(&get_path(uri)?)?
             .get_syntax_tree()?;
 
-        let row = line as usize;
-        let column = character as usize;
-        let pos = Point { row, column };
+        let pos = Point { row: line as usize, column: character as usize };
 
         let mut cursor = tree.walk();
         while cursor.goto_first_child_for_point(pos).is_some() {}
 
         let node = cursor.node();
 
-        let Point {
-            row: start_line,
-            column: start_character,
-        } = node.range().start_point;
-        let Point {
-            row: stop_line,
-            column: stop_character,
-        } = node.range().end_point;
-        let (start_line, start_character, stop_line, stop_character) = (
-            start_line as u32,
-            start_character as u32,
-            stop_line as u32,
-            stop_character as u32,
-        );
-
         Ok(Some(Hover {
             contents: HoverContents::Scalar(MarkedString::String(node.kind().into())),
-            range: Some(Range {
-                start: Position {
-                    line: start_line,
-                    character: start_character,
-                },
-                end: Position {
-                    line: stop_line,
-                    character: stop_character,
-                },
-            }),
+            range: Some(get_range(node)),
         }))
     }
 }
