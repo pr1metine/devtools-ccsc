@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use tower_lsp::jsonrpc::Result;
 
+use crate::{TextDocument, utils};
 use crate::server::mplab_project_config::MPLABProjectConfig;
 use crate::server::TextDocumentType;
-use crate::utils;
 
 #[derive(Default)]
 pub struct BackendData {
@@ -42,6 +42,16 @@ impl BackendData {
         docs.into_iter().for_each(|(path, doc)| {
             self.docs.insert(path, doc);
         });
+    }
+
+    pub fn get_doc_or_insert_ignored(&mut self, path: PathBuf) -> Option<&mut TextDocument> {
+        let out = self.docs.entry(path).or_insert(TextDocumentType::Ignored);
+
+        match out {
+            TextDocumentType::Ignored => None,
+            TextDocumentType::Source(doc) => Some(doc),
+            TextDocumentType::MCP(doc) => Some(doc),
+        }
     }
 
     pub fn get_doc(&self, path: &PathBuf) -> Result<&TextDocumentType> {

@@ -40,7 +40,12 @@ impl Backend {
         self.data.lock().unwrap()
     }
 
-    pub fn get_parser(&self) -> MutexGuard<Parser> {
+    pub fn get_parser(&self) -> Arc<Mutex<Parser>> {
+        self.parser.clone()
+    }
+
+    #[allow(dead_code)]
+    pub fn get_parser_as_guard(&self) -> MutexGuard<Parser> {
         self.parser.lock().unwrap()
     }
 }

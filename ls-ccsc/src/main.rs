@@ -1,4 +1,3 @@
-use std::ops::DerefMut;
 use std::path::PathBuf;
 
 use ini::Ini;
@@ -8,7 +7,7 @@ use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Point};
 
 use crate::server::{MPLABProjectConfig, TextDocument, TextDocumentType};
-use crate::utils::{get_path, is_source_file};
+use crate::utils::get_path;
 
 mod server;
 mod utils;
@@ -33,9 +32,8 @@ impl LanguageServer for server::Backend {
         let ini = get_mcp_ini(&root_path)?;
         let config = MPLABProjectConfig::from_ini_to_lsp_result(&ini)?;
 
-        let mut parser = self.get_parser();
-        let docs = utils::generate_text_documents(&config, &root_path, parser.deref_mut())?;
-        std::mem::drop(parser);
+        let parser = self.get_parser();
+        let docs = utils::generate_text_documents(&config, &root_path, parser)?;
 
         let mut data = self.get_data();
         data.set_root_path(root_path);
@@ -80,18 +78,40 @@ impl LanguageServer for server::Backend {
         }
 
         let path = path.unwrap();
+        let mut data = self.get_data();
+        data.get_doc_or_insert_ignored(path);
+    }
 
-        if !is_source_file(&path) {
-            self.info(format!(
-                "File extension is not .c or .h: {}",
-                path.display()
-            ))
+    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        let DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier { uri, .. },
+            content_changes,
+        } = params;
+
+        let path = utils::get_path(&uri);
+        if path.is_err() {
+            self.error(format!("Failed to get path from uri: {}", uri))
                 .await;
             return;
         }
+        let path = path.unwrap();
 
-        let mut data = self.get_data();
-        data.docs.entry(path).or_insert(TextDocumentType::Ignored);
+        let mut log = String::new();
+        {
+            let mut data = self.get_data();
+            let doc = data.get_doc_or_insert_ignored(path.clone());
+            if doc.is_some() {
+                let doc = doc.unwrap();
+                doc.edit_and_reparse_with_lsp(content_changes);
+                log.push_str("Document changed.\n");
+                log.push_str(&doc.raw);
+                log.push('\n');
+            } else {
+                log.push_str("Document was not found.\n");
+            }
+        }
+
+        self.info(log).await;
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
