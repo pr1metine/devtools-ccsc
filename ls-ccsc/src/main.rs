@@ -97,12 +97,12 @@ impl LanguageServer for server::Backend {
 
             let mut data = this.get_data();
             let doc = data.get_doc_or_insert_ignored(path.clone())?;
-            doc.reparse_with_lsp(content_changes)?;
+            let log = doc.reparse_with_lsp(content_changes)?;
 
             Ok(format!(
                 "Document '{}' changed:\n{}\n",
                 doc.absolute_path.display(),
-                doc.raw
+                log
             ))
         }
 
