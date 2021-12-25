@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use tower_lsp::Client;
+use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::MessageType;
 use tree_sitter::Parser;
 
@@ -30,6 +31,13 @@ impl Backend {
 
     pub async fn error(&self, msg: String) {
         self.get_client().log_message(MessageType::Error, msg).await
+    }
+
+    pub async fn log_result(&self, result: Result<String>) {
+        match result {
+            Ok(msg) => self.info(msg).await,
+            Err(err) => self.error(err.to_string()).await,
+        }
     }
 
     pub fn get_client(&self) -> &Client {

@@ -6,8 +6,7 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Point};
 
-use crate::server::{MPLABProjectConfig, TextDocument, TextDocumentType};
-use crate::utils::get_path;
+use crate::server::{Backend, MPLABProjectConfig, TextDocument, TextDocumentType};
 
 mod server;
 mod utils;
@@ -65,56 +64,63 @@ impl LanguageServer for server::Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let DidOpenTextDocumentParams {
-            text_document: TextDocumentItem { uri, .. },
-        } = params;
+        type DOTDP = DidOpenTextDocumentParams;
+        fn did_open_with_result(this: &Backend, params: DOTDP) -> Result<String> {
+            let DOTDP {
+                text_document: TextDocumentItem { uri, .. },
+            } = params;
 
-        let path = utils::get_path(&uri);
+            let path = utils::get_path(&uri)?;
 
-        if path.is_err() {
-            self.error(format!("Failed to get path from uri: {}", uri))
-                .await;
-            return;
+            let mut data = this.get_data();
+            let doc = data.get_doc_or_insert_ignored(path)?;
+            Ok(format!("Document opened: {}", doc.absolute_path.display()))
         }
 
-        let path = path.unwrap();
-        let mut data = self.get_data();
-        data.get_doc_or_insert_ignored(path);
+        self.log_result(did_open_with_result(self, params)).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier { uri, .. },
-            content_changes,
-        } = params;
-
-        let path = utils::get_path(&uri);
-        if path.is_err() {
-            self.error(format!("Failed to get path from uri: {}", uri))
-                .await;
-            return;
-        }
-        let path = path.unwrap();
-
-        let mut log = String::new();
-        {
-            let mut data = self.get_data();
-            let doc = data.get_doc_or_insert_ignored(path.clone());
-            if doc.is_some() {
-                let doc = doc.unwrap();
-                doc.edit_and_reparse_with_lsp(content_changes);
-                log.push_str("Document changed.\n");
-                log.push_str(&doc.raw);
-                log.push('\n');
-            } else {
-                log.push_str("Document was not found.\n");
+        type DCTDP = DidChangeTextDocumentParams;
+        type TDCCE = TextDocumentContentChangeEvent;
+        fn did_change_with_result(this: &Backend, params: DCTDP) -> Result<String> {
+            fn deconstruct_input(params: DidChangeTextDocumentParams) -> (Url, Vec<TDCCE>) {
+                let DCTDP {
+                    text_document: VersionedTextDocumentIdentifier { uri, .. },
+                    content_changes,
+                } = params;
+                (uri, content_changes)
             }
+
+            let (uri, content_changes) = deconstruct_input(params);
+            let path = utils::get_path(&uri)?;
+
+            let mut data = this.get_data();
+            let doc = data.get_doc_or_insert_ignored(path.clone())?;
+            doc.reparse_with_lsp(content_changes)?;
+
+            Ok(format!(
+                "Document '{}' changed:\n{}\n",
+                doc.absolute_path.display(),
+                doc.raw
+            ))
         }
 
-        self.info(log).await;
+        self.log_result(did_change_with_result(self, params)).await;
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        fn deconstruct_input(params: HoverParams) -> (u32, u32, Url) {
+            let HoverParams {
+                text_document_position_params:
+                TextDocumentPositionParams {
+                    position: Position { line, character },
+                    text_document: TextDocumentIdentifier { uri },
+                },
+                ..
+            } = params;
+            (line, character, uri)
+        }
         fn get_range(node: Node) -> Range {
             let tree_sitter::Range {
                 start_point:
@@ -140,39 +146,35 @@ impl LanguageServer for server::Backend {
                 },
             }
         }
+        fn get_output(pos: Point, doc_type: &TextDocumentType) -> Result<Option<Hover>> {
+            let out = match doc_type {
+                TextDocumentType::Source(doc) => {
+                    let tree = doc.get_syntax_tree()?;
+                    let mut cursor = tree.walk();
+                    while cursor.goto_first_child_for_point(pos).is_some() {}
 
-        let HoverParams {
-            text_document_position_params:
-            TextDocumentPositionParams {
-                position: Position { line, character },
-                text_document: TextDocumentIdentifier { uri },
-            },
-            ..
-        } = params;
+                    let node = cursor.node();
+
+                    Some(Hover {
+                        contents: HoverContents::Scalar(MarkedString::String(node.kind().into())),
+                        range: Some(get_range(node)),
+                    })
+                }
+                _ => None,
+            };
+            Ok(out)
+        }
+
+        let (line, character, uri) = deconstruct_input(params);
 
         let data = self.get_data();
-
-        let out = match data.get_doc(&get_path(&uri)?)? {
-            TextDocumentType::Source(doc) => {
-                let tree = doc.get_syntax_tree()?;
-                let pos = Point {
-                    row: line as usize,
-                    column: character as usize,
-                };
-                let mut cursor = tree.walk();
-                while cursor.goto_first_child_for_point(pos).is_some() {}
-
-                let node = cursor.node();
-
-                Some(Hover {
-                    contents: HoverContents::Scalar(MarkedString::String(node.kind().into())),
-                    range: Some(get_range(node)),
-                })
-            }
-            _ => None,
+        let doc_type = data.get_doc(&utils::get_path(&uri)?)?;
+        let pos = Point {
+            row: line as usize,
+            column: character as usize,
         };
 
-        Ok(out)
+        get_output(pos, doc_type)
     }
 }
 

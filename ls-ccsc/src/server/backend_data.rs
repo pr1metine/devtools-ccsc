@@ -44,13 +44,16 @@ impl BackendData {
         });
     }
 
-    pub fn get_doc_or_insert_ignored(&mut self, path: PathBuf) -> Option<&mut TextDocument> {
+    pub fn get_doc_or_insert_ignored(&mut self, path: PathBuf) -> Result<&mut TextDocument> {
         let out = self.docs.entry(path).or_insert(TextDocumentType::Ignored);
 
         match out {
-            TextDocumentType::Ignored => None,
-            TextDocumentType::Source(doc) => Some(doc),
-            TextDocumentType::MCP(doc) => Some(doc),
+            TextDocumentType::Ignored => Err(utils::create_server_error(
+                4,
+                "Document is ignored".to_owned(),
+            )),
+            TextDocumentType::Source(doc) => Ok(doc),
+            TextDocumentType::MCP(doc) => Ok(doc),
         }
     }
 
