@@ -6,6 +6,7 @@ use tower_lsp::lsp_types::MessageType;
 use tree_sitter::Parser;
 
 use crate::server::backend_data::BackendData;
+use crate::server::DiagnosticResult;
 
 pub struct Backend {
     client: Client,
@@ -35,9 +36,24 @@ impl Backend {
             .await
     }
 
-    pub async fn log_result(&self, result: Result<String>) {
+    pub async fn log_result(&self, result: Result<DiagnosticResult>) {
         match result {
-            Ok(msg) => self.info(msg).await,
+            Ok(DiagnosticResult {
+                   logs,
+                   uri_diagnostics
+               }) => {
+                if let Some(logs) = logs {
+                    for log in logs {
+                        self.info(log).await;
+                    }
+                }
+
+                if let Some((uri, diagnostics)) = uri_diagnostics {
+                    self.get_client()
+                        .publish_diagnostics(uri, diagnostics, None)
+                        .await
+                }
+            }
             Err(err) => {
                 self.error(format!("Error code {}: {}", err.code, err.message))
                     .await

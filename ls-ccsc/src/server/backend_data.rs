@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use tower_lsp::jsonrpc::Result;
 
-use crate::{TextDocument, utils};
 use crate::server::mplab_project_config::MPLABProjectConfig;
 use crate::server::TextDocumentType;
+use crate::utils;
 
 #[derive(Default)]
 pub struct BackendData {
@@ -44,17 +44,8 @@ impl BackendData {
         });
     }
 
-    pub fn get_doc_or_insert_ignored(&mut self, path: PathBuf) -> Result<&mut TextDocument> {
-        let out = self.docs.entry(path).or_insert(TextDocumentType::Ignored);
-
-        match out {
-            TextDocumentType::Ignored => Err(utils::create_server_error(
-                4,
-                "Document is ignored".to_owned(),
-            )),
-            TextDocumentType::Source(doc) => Ok(doc),
-            TextDocumentType::MCP(doc) => Ok(doc),
-        }
+    pub fn get_doc_or_ignored(&mut self, path: PathBuf) -> &mut TextDocumentType {
+        self.docs.entry(path).or_insert(TextDocumentType::Ignored)
     }
 
     pub fn get_doc(&self, path: &PathBuf) -> Result<&TextDocumentType> {

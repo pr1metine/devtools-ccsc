@@ -6,7 +6,9 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Point};
 
-use crate::server::{Backend, MPLABProjectConfig, TextDocument, TextDocumentType};
+use crate::server::{
+    Backend, DiagnosticResult, MPLABProjectConfig, TextDocument, TextDocumentType,
+};
 
 mod server;
 mod utils;
@@ -31,8 +33,7 @@ impl LanguageServer for server::Backend {
         let ini = get_mcp_ini(&root_path)?;
         let config = MPLABProjectConfig::from_ini_to_lsp_result(&ini)?;
 
-        let parser = self.get_parser();
-        let docs = utils::generate_text_documents(&config, &root_path, parser)?;
+        let docs = utils::generate_text_documents(&config, &root_path, self.get_parser())?;
 
         let mut data = self.get_data();
         data.set_root_path(root_path);
@@ -60,16 +61,23 @@ impl LanguageServer for server::Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         type DOTDP = DidOpenTextDocumentParams;
-        fn did_open_with_result(this: &Backend, params: DOTDP) -> Result<String> {
+        fn did_open_with_result(this: &Backend, params: DOTDP) -> Result<DiagnosticResult> {
             let DOTDP {
                 text_document: TextDocumentItem { uri, .. },
             } = params;
 
             let path = utils::get_path(&uri)?;
             let mut data = this.get_data();
-            let doc = data.get_doc_or_insert_ignored(path)?;
+            let doc_type = data.get_doc_or_ignored(path);
 
-            Ok(format!("Document opened: {}", doc.absolute_path.display()))
+            let out = match doc_type {
+                TextDocumentType::Ignored => utils::diagnostic_result_ignores_file(uri),
+                _ => {
+                    DiagnosticResult::from_logs(vec![format!("Document opened: {}", uri.as_str())])
+                }
+            };
+
+            Ok(out)
         }
 
         self.log_result(did_open_with_result(self, params)).await;
@@ -78,7 +86,7 @@ impl LanguageServer for server::Backend {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         type DCTDP = DidChangeTextDocumentParams;
         type TDCCE = TextDocumentContentChangeEvent;
-        fn did_change_with_result(this: &Backend, params: DCTDP) -> Result<String> {
+        fn did_change_with_result(this: &Backend, params: DCTDP) -> Result<DiagnosticResult> {
             fn deconstruct_input(params: DidChangeTextDocumentParams) -> (Url, Vec<TDCCE>) {
                 let DCTDP {
                     text_document: VersionedTextDocumentIdentifier { uri, .. },
@@ -86,19 +94,27 @@ impl LanguageServer for server::Backend {
                 } = params;
                 (uri, content_changes)
             }
+            fn reparse_doc(doc: &mut TextDocument, changes: Vec<TDCCE>) -> Result<DiagnosticResult> {
+                let log = doc.reparse_with_lsp(changes)?;
+                let out = DiagnosticResult::from_logs(vec![format!(
+                    "Document '{}' changed:\n{}\n",
+                    doc.absolute_path.display(),
+                    log
+                )]);
+                Ok(out)
+            }
 
-            let (uri, content_changes) = deconstruct_input(params);
+            let (uri, changes) = deconstruct_input(params);
             let path = utils::get_path(&uri)?;
 
             let mut data = this.get_data();
-            let doc = data.get_doc_or_insert_ignored(path.clone())?;
-            let log = doc.reparse_with_lsp(content_changes)?;
-
-            Ok(format!(
-                "Document '{}' changed:\n{}\n",
-                doc.absolute_path.display(),
-                log
-            ))
+            let doc = data.get_doc_or_ignored(path);
+            let out = match doc {
+                TextDocumentType::Ignored => utils::diagnostic_result_ignores_file(uri),
+                TextDocumentType::Source(doc) => reparse_doc(doc, changes)?,
+                TextDocumentType::MCP(doc) => reparse_doc(doc, changes)?,
+            };
+            Ok(out)
         }
 
         self.log_result(did_change_with_result(self, params)).await;

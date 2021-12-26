@@ -6,9 +6,10 @@ use std::sync::{Arc, Mutex};
 
 use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 use tree_sitter::{Parser, Point};
 
-use crate::{MPLABProjectConfig, TextDocument, Url, utils};
+use crate::{DiagnosticResult, MPLABProjectConfig, TextDocument, Url, utils};
 use crate::server::{MPLABFile, TextDocumentType};
 
 pub fn create_server_error(code: i64, message: String) -> Error {
@@ -175,6 +176,21 @@ pub fn apply_change(mut target: String, mut diff: String, range: Range<usize>) -
         target.insert_str(end_exclusive, &diff[end_exclusive - start_inclusive..]);
     }
     Ok(target)
+}
+
+pub fn diagnostic_result_ignores_file(uri: Url) -> DiagnosticResult {
+    DiagnosticResult::from_diagnostics(
+        uri,
+        vec![Diagnostic::new(
+            tower_lsp::lsp_types::Range::default(),
+            Some(DiagnosticSeverity::Warning),
+            None,
+            Some(String::from("ls-ccsc")),
+            "Document is ignored".to_string(),
+            None,
+            None,
+        )],
+    )
 }
 
 #[cfg(test)]
