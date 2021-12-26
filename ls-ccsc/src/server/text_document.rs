@@ -63,9 +63,10 @@ impl TextDocument {
     }
 
     pub fn reparse_with_lsp(&mut self, params: Vec<TDCCE>) -> Result<String> {
-        type In = (usize, usize, usize, usize, String);
-        type ReparsingIn = (String, Vec<usize>, InputEdit);
-        fn deconstruct_input(tdcce: TextDocumentContentChangeEvent) -> Option<In> {
+        type In1 = (usize, usize, usize, usize, String);
+        type In2 = (Point, Point, String);
+        type In3 = (String, Vec<usize>, InputEdit);
+        fn deconstruct_input(tdcce: TextDocumentContentChangeEvent) -> Option<In1> {
             let TextDocumentContentChangeEvent { range, text, .. } = tdcce;
 
             range.map(
@@ -91,16 +92,14 @@ impl TextDocument {
                 },
             )
         }
-        fn preprocess_for_reparsing(input: In, raw: String, offsets: &Vec<usize>) -> ReparsingIn {
+        fn construct_points_and_change(input: In1) -> In2 {
             let (start_line, end_line, start_character, end_character, changed) = input;
-            let start_position = Point {
-                row: start_line,
-                column: start_character,
-            };
-            let old_end_position = Point {
-                row: end_line,
-                column: end_character,
-            };
+            let start_position = Point::new(start_line as usize, start_character as usize);
+            let old_end_position = Point::new(end_line as usize, end_character as usize);
+            (start_position, old_end_position, changed)
+        }
+        fn preprocess_for_reparsing(input: In2, raw: String, offsets: &Vec<usize>) -> Result<In3> {
+            let (start_position, old_end_position, changed) = input;
             let start_byte = point_to_byte_from_offsets(&start_position, offsets);
             let old_end_byte = point_to_byte_from_offsets(&old_end_position, offsets);
             let new_end_byte = start_byte + changed.len() - 1;
@@ -119,17 +118,19 @@ impl TextDocument {
                 new_end_position,
             };
 
-            (curr_input, column_offsets, edit)
+            Ok((curr_input, column_offsets, edit))
         }
 
         let mut log = String::with_capacity(self.raw.len());
         for param in params
             .into_iter()
             .filter_map(|param| deconstruct_input(param))
+            .map(|input| construct_points_and_change(input))
         {
             let (input, offsets, edit) =
-                preprocess_for_reparsing(param, self.raw.clone(), &self.column_offsets);
-            log.push_str(self.reparse(input, offsets, edit)?);
+                preprocess_for_reparsing(param, self.raw.clone(), &self.column_offsets)?;
+            let raw = self.reparse(input, offsets, edit)?;
+            log.push_str(raw);
             log.push_str("\n\n---\n\n");
         }
 

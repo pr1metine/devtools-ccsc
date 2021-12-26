@@ -30,13 +30,18 @@ impl Backend {
     }
 
     pub async fn error(&self, msg: String) {
-        self.get_client().log_message(MessageType::Error, msg).await
+        self.get_client()
+            .show_message(MessageType::Error, msg)
+            .await
     }
 
     pub async fn log_result(&self, result: Result<String>) {
         match result {
             Ok(msg) => self.info(msg).await,
-            Err(err) => self.error(err.to_string()).await,
+            Err(err) => {
+                self.error(format!("Error code {}: {}", err.code, err.message))
+                    .await
+            }
         }
     }
 

@@ -18,7 +18,9 @@
                     "CCS C"
                 ],
                 "extensions": [
-                    ".c"
+                    ".c",
+                    ".h",
+                    ".mcp"
                 ],
                 "configuration": "./language-configuration.json"
             }

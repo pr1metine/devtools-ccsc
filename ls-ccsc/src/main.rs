@@ -54,11 +54,6 @@ impl LanguageServer for server::Backend {
         })
     }
 
-    async fn initialized(&self, _: InitializedParams) {
-        self.info("Server initialized. LSP yet to be fully implemented.".to_owned())
-            .await;
-    }
-
     async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
@@ -71,9 +66,9 @@ impl LanguageServer for server::Backend {
             } = params;
 
             let path = utils::get_path(&uri)?;
-
             let mut data = this.get_data();
             let doc = data.get_doc_or_insert_ignored(path)?;
+
             Ok(format!("Document opened: {}", doc.absolute_path.display()))
         }
 
@@ -146,7 +141,7 @@ impl LanguageServer for server::Backend {
                 },
             }
         }
-        fn get_output(pos: Point, doc_type: &TextDocumentType) -> Result<Option<Hover>> {
+        fn get_hover_information(pos: Point, doc_type: &TextDocumentType) -> Result<Option<Hover>> {
             let out = match doc_type {
                 TextDocumentType::Source(doc) => {
                     let tree = doc.get_syntax_tree()?;
@@ -169,12 +164,9 @@ impl LanguageServer for server::Backend {
 
         let data = self.get_data();
         let doc_type = data.get_doc(&utils::get_path(&uri)?)?;
-        let pos = Point {
-            row: line as usize,
-            column: character as usize,
-        };
+        let pos = Point::new(line as usize, character as usize);
 
-        get_output(pos, doc_type)
+        get_hover_information(pos, doc_type)
     }
 }
 

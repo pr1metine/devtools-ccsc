@@ -32,79 +32,65 @@ pub struct MPLABProjectConfig {
     pub tool_settings: Vec<(String, String)>,
 }
 
+type SResult<T> = Result<T, String>;
+
 impl MPLABProjectConfig {
     pub fn from_ini_to_lsp_result(ini: &Ini) -> jsonrpc::Result<Self> {
         MPLABProjectConfig::from_ini(ini).map_err(|e| utils::create_server_error(5, e))
     }
 
-    pub fn from_ini(ini: &Ini) -> Result<Self, String> {
-        fn get_section<'i>(ini: &'i Ini, section: &'static str) -> Result<&'i Properties, String> {
+    pub fn from_ini(ini: &Ini) -> SResult<Self> {
+        fn get_section<'i>(ini: &'i Ini, section: &str) -> SResult<&'i Properties> {
             Ok(ini
                 .section(Some(section))
                 .ok_or(format!("Section '{}' not found in .mcp", section))?)
         }
-        fn get_field(section: &Properties, field: &'static str) -> Result<String, String> {
+        fn get_field(section: &Properties, field: &str) -> SResult<String> {
             Ok(String::from(
                 section
                     .get(field)
                     .ok_or(format!("INI field '{}' not found...", field))?,
             ))
         }
-        fn get_all_fields_in_section(
-            ini: &Ini,
-            section: &'static str,
-        ) -> Result<Vec<(String, String)>, String> {
+        fn get_all_fields_in_section(ini: &Ini, section: &str) -> SResult<Vec<(String, String)>> {
             Ok(get_section(ini, section)?
                 .iter()
                 .map(|(k, v)| (String::from(k), String::from(v)))
                 .collect())
         }
-        fn get_files(ini: &Ini) -> Result<HashMap<String, MPLABFile>, String> {
-            fn get_file_names<'a>(
-                ini: &'a Ini,
-                mut files: HashMap<&'a str, MPLABFile>,
-            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+        fn get_files(ini: &Ini) -> SResult<HashMap<String, MPLABFile>> {
+            type MPLABMap<'a> = HashMap<&'a str, MPLABFile>;
+            fn get_file_names<'a>(ini: &'a Ini, mut f: MPLABMap<'a>) -> SResult<MPLABMap<'a>> {
                 for (key, value) in get_section(ini, "FILE_INFO")?.iter() {
-                    files.insert(key, MPLABFile::new(value.to_owned()));
+                    f.insert(key, MPLABFile::new(value.to_owned()));
                 }
-                Ok(files)
+                Ok(f)
             }
-            fn add_is_generated<'a>(
-                ini: &'a Ini,
-                mut files: HashMap<&'a str, MPLABFile>,
-            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+            fn add_is_generated<'a>(ini: &'a Ini, mut f: MPLABMap<'a>) -> SResult<MPLABMap<'a>> {
                 for (key, value) in get_section(ini, "GENERATED_FILES")?.iter() {
                     if value.contains("$(ProjectDir)") {
-                        files.get_mut(key).unwrap().is_generated = true;
+                        f.get_mut(key).unwrap().is_generated = true;
                     }
                 }
-                Ok(files)
+                Ok(f)
             }
-            fn add_is_other<'a>(
-                ini: &'a Ini,
-                mut files: HashMap<&'a str, MPLABFile>,
-            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+            fn add_is_other<'a>(ini: &'a Ini, mut f: MPLABMap<'a>) -> SResult<MPLABMap<'a>> {
                 for (key, value) in get_section(ini, "OTHER_FILES")?.iter() {
-                    files
-                        .get_mut(key)
+                    f.get_mut(key)
                         .ok_or(format!("File key '{}' not found...", key))?
                         .is_other = value == "yes";
                 }
-                Ok(files)
+                Ok(f)
             }
-            fn add_subfolder<'a>(
-                ini: &'a Ini,
-                mut files: HashMap<&'a str, MPLABFile>,
-            ) -> Result<HashMap<&'a str, MPLABFile>, String> {
+            fn add_subfolder<'a>(ini: &'a Ini, mut f: MPLABMap<'a>) -> SResult<MPLABMap<'a>> {
                 for (key, value) in get_section(ini, "FILE_SUBFOLDERS")?.iter() {
-                    files
-                        .get_mut(key)
+                    f.get_mut(key)
                         .ok_or(format!("File key '{}' not found...", key))?
                         .subfolder = value.to_owned();
                 }
-                Ok(files)
+                Ok(f)
             }
-            fn key_to_owned(files: HashMap<&str, MPLABFile>) -> HashMap<String, MPLABFile> {
+            fn key_to_owned(files: MPLABMap) -> HashMap<String, MPLABFile> {
                 files.into_iter().map(|(k, v)| (k.to_owned(), v)).collect()
             }
 

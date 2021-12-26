@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types;
+use tower_lsp::lsp_types::Position;
 use tree_sitter::{Parser, Point};
 
 use crate::{MPLABProjectConfig, TextDocument, Url, utils};
@@ -141,16 +143,10 @@ pub fn point_to_byte_from_offsets(point: &Point, offsets: &Vec<usize>) -> usize 
 pub fn byte_to_point_from_offsets(byte: usize, offsets: &Vec<usize>) -> Point {
     for (i, &offset) in offsets.iter().enumerate() {
         if byte < offset {
-            return Point {
-                row: i - 1,
-                column: byte - offsets[i - 1],
-            };
+            return Point::new(i - 1, byte - offsets[i - 1]);
         }
     }
-    Point {
-        row: offsets.len() - 1,
-        column: byte - offsets[offsets.len() - 1],
-    }
+    Point::new(offsets.len() - 1, byte - offsets[offsets.len() - 1])
 }
 
 pub fn apply_change_to_string(
