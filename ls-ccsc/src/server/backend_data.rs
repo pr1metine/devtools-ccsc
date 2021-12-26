@@ -11,7 +11,7 @@ use crate::server::TextDocumentType;
 pub struct BackendData {
     root_path: Option<PathBuf>,
     mcp: Option<MPLABProjectConfig>,
-    pub docs: HashMap<PathBuf, TextDocumentType>,
+    docs: HashMap<PathBuf, TextDocumentType>,
 }
 
 impl BackendData {

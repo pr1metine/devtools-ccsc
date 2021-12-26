@@ -104,7 +104,7 @@ impl TextDocument {
             let old_end_byte = point_to_byte_from_offsets(&old_end_position, offsets);
             let new_end_byte = start_byte + changed.len() - 1;
 
-            let curr_input = utils::apply_change_to_string(raw, changed, start_byte..old_end_byte);
+            let curr_input = utils::apply_change(raw, changed, start_byte..old_end_byte)?;
 
             let column_offsets = utils::get_column_offsets(&curr_input);
             let new_end_position = byte_to_point_from_offsets(new_end_byte, &column_offsets);

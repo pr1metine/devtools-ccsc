@@ -6,8 +6,6 @@ use std::sync::{Arc, Mutex};
 
 use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types;
-use tower_lsp::lsp_types::Position;
 use tree_sitter::{Parser, Point};
 
 use crate::{MPLABProjectConfig, TextDocument, Url, utils};
@@ -149,36 +147,34 @@ pub fn byte_to_point_from_offsets(byte: usize, offsets: &Vec<usize>) -> Point {
     Point::new(offsets.len() - 1, byte - offsets[offsets.len() - 1])
 }
 
-pub fn apply_change_to_string(
-    mut to_be_changed: String,
-    mut replacement: String,
-    replacement_range: Range<usize>,
-) -> String {
-    let (start_inclusive, end_exclusive) = (replacement_range.start, replacement_range.end);
-    let replacement_end_exclusive = start_inclusive + replacement.len();
+pub fn apply_change(mut target: String, mut diff: String, range: Range<usize>) -> Result<String> {
+    let (start_inclusive, end_exclusive) = (range.start, range.end);
+    let replacement_end_exclusive = start_inclusive + diff.len();
+
     unsafe {
-        let input = replacement.as_mut_vec();
-        let destination = to_be_changed.as_mut_vec();
+        let input = diff.as_mut_vec();
+        let destination = target.as_mut_vec();
         for i in start_inclusive..(end_exclusive).min(replacement_end_exclusive) {
-            *destination
-                .get_mut(i)
-                .expect("Destination index out of bounds") = *input
+            *destination.get_mut(i).ok_or(utils::create_server_error(
+                6,
+                format!("Target idx ('{}') out of bounds", i),
+            ))? = *input
                 .get(i - start_inclusive)
-                .expect("Source index out of bounds")
+                .ok_or(utils::create_server_error(
+                    6,
+                    format!("Diff idx ('{}') out of bounds", i - start_inclusive),
+                ))?;
         }
     }
 
     if replacement_end_exclusive < end_exclusive {
         for _ in (replacement_end_exclusive)..(end_exclusive) {
-            to_be_changed.remove(replacement_end_exclusive);
+            target.remove(replacement_end_exclusive);
         }
     } else if replacement_end_exclusive > end_exclusive {
-        to_be_changed.insert_str(
-            end_exclusive,
-            &replacement[end_exclusive - start_inclusive..],
-        );
+        target.insert_str(end_exclusive, &diff[end_exclusive - start_inclusive..]);
     }
-    to_be_changed
+    Ok(target)
 }
 
 #[cfg(test)]
@@ -188,11 +184,12 @@ mod tests {
     #[test]
     fn test_string_change_1() {
         assert_eq!(
-            apply_change_to_string(
+            apply_change(
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 0..1,
-            ),
+            )
+                .unwrap(),
             "abcdefghijklmnopqrstuvwxyzbcdefghijklmnopqrstuvwxyz"
         );
     }
@@ -200,7 +197,7 @@ mod tests {
     #[test]
     fn test_string_change_empty() {
         assert_eq!(
-            apply_change_to_string("abcdefghijklmnopqrstuvwxyz".to_owned(), "".to_owned(), 0..1),
+            apply_change("abcdefghijklmnopqrstuvwxyz".to_owned(), "".to_owned(), 0..1).unwrap(),
             "bcdefghijklmnopqrstuvwxyz"
         );
     }
@@ -208,7 +205,7 @@ mod tests {
     #[test]
     fn test_string_change_delete() {
         assert_eq!(
-            apply_change_to_string("abcdefghijklmnopqrstuvwxyz".to_owned(), "".to_owned(), 0..7),
+            apply_change("abcdefghijklmnopqrstuvwxyz".to_owned(), "".to_owned(), 0..7).unwrap(),
             "hijklmnopqrstuvwxyz"
         );
     }
@@ -216,11 +213,12 @@ mod tests {
     #[test]
     fn test_string_change_expansion() {
         assert_eq!(
-            apply_change_to_string(
+            apply_change(
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 0..7,
-            ),
+            )
+                .unwrap(),
             "abcdefghijklmnopqrstuvwxyzhijklmnopqrstuvwxyz"
         );
     }
@@ -228,11 +226,12 @@ mod tests {
     #[test]
     fn test_string_change_reduction() {
         assert_eq!(
-            apply_change_to_string(
+            apply_change(
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 "defg".to_owned(),
                 0..7,
-            ),
+            )
+                .unwrap(),
             "defghijklmnopqrstuvwxyz"
         );
     }
@@ -240,11 +239,12 @@ mod tests {
     #[test]
     fn test_string_change_without_size_change() {
         assert_eq!(
-            apply_change_to_string(
+            apply_change(
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 "leetcode".to_owned(),
                 4..12,
-            ),
+            )
+                .unwrap(),
             "abcdleetcodemnopqrstuvwxyz"
         )
     }
