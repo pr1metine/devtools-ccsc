@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
-use tree_sitter::{InputEdit, Parser, Point, Tree};
+use tower_lsp::lsp_types::{Diagnostic, Position, Range, TextDocumentContentChangeEvent};
+use tree_sitter::{InputEdit, Parser, Point, Tree, TreeCursor};
 
 use crate::server::TextDocumentSource;
 use crate::utils;
@@ -150,5 +150,57 @@ impl TextDocument {
         self.source = content;
         self.syntax_tree = tree;
         Ok(self.source.get_raw())
+    }
+
+    pub fn get_syntax_errors(&self) -> Result<Vec<Diagnostic>> {
+        fn convert_ts_range_to_lsp_range(range: tree_sitter::Range) -> Range {
+            let tree_sitter::Range {
+                start_point:
+                    Point {
+                        row: start_line,
+                        column: start_character,
+                    },
+                end_point:
+                    Point {
+                        row: end_line,
+                        column: end_character,
+                    },
+                ..
+            } = range;
+
+            Range {
+                start: Position {
+                    line: start_line as u32,
+                    character: start_character as u32,
+                },
+                end: Position {
+                    line: end_line as u32,
+                    character: end_character as u32,
+                },
+            }
+        }
+        fn traverse(mut cursor: TreeCursor, diagnostics: &mut Vec<Diagnostic>) {
+            let node = cursor.node();
+            if !node.has_error() {
+                return;
+            }
+
+            if node.is_error() || node.is_missing() {
+                diagnostics.push(Diagnostic::new_simple(
+                    convert_ts_range_to_lsp_range(node.range()),
+                    node.kind().to_string(),
+                ));
+            };
+
+            cursor.goto_first_child();
+            for _ in 0..node.child_count() {
+                traverse(cursor.node().walk(), diagnostics);
+                cursor.goto_next_sibling();
+            }
+        }
+
+        let mut diagnostics = Vec::new();
+        traverse(self.get_syntax_tree()?.walk(), &mut diagnostics);
+        Ok(diagnostics)
     }
 }

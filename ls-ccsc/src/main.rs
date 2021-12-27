@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use ini::Ini;
+use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
-use tower_lsp::{LanguageServer, LspService, Server};
 use tree_sitter::{Node, Point};
 
 use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument, TextDocumentType};
@@ -70,10 +70,17 @@ impl LanguageServer for server::Backend {
 
             let out = match doc_type {
                 TextDocumentType::Ignored => utils::diagnostic_result_ignores_file(uri),
-                _ => CCSCResponse::from_logs(vec![format!("Document opened: {}", uri.as_str())]),
+                TextDocumentType::Source(doc) => generate_response(uri, doc.get_syntax_errors()?),
+                TextDocumentType::MCP(doc) => generate_response(uri, doc.get_syntax_errors()?),
             };
 
             Ok(out)
+        }
+        fn generate_response(uri: Url, diagnostics: Vec<Diagnostic>) -> CCSCResponse {
+            CCSCResponse::new(
+                Some(vec![format!("Document opened: {}", uri.as_str())]),
+                Some((uri, diagnostics)),
+            )
         }
 
         self.handle_response(did_open_with_result(self, params))
@@ -91,13 +98,19 @@ impl LanguageServer for server::Backend {
                 } = params;
                 (uri, content_changes)
             }
-            fn reparse_doc(doc: &mut TextDocument, changes: Vec<TDCCE>) -> Result<CCSCResponse> {
+            fn reparse_doc(
+                doc: &mut TextDocument,
+                changes: Vec<TDCCE>,
+                result: Url,
+            ) -> Result<CCSCResponse> {
                 let log = doc.reparse_with_lsp(changes)?;
-                let out = CCSCResponse::from_logs(vec![format!(
+                let logs = vec![format!(
                     "Document '{}' changed:\n{}\n",
                     doc.absolute_path.display(),
                     log
-                )]);
+                )];
+                let diagnostics = doc.get_syntax_errors()?;
+                let out = CCSCResponse::new(Some(logs), Some((result, diagnostics)));
                 Ok(out)
             }
 
@@ -108,8 +121,8 @@ impl LanguageServer for server::Backend {
             let doc = data.get_doc_or_ignored(path);
             let out = match doc {
                 TextDocumentType::Ignored => utils::diagnostic_result_ignores_file(uri),
-                TextDocumentType::Source(doc) => reparse_doc(doc, changes)?,
-                TextDocumentType::MCP(doc) => reparse_doc(doc, changes)?,
+                TextDocumentType::Source(doc) => reparse_doc(doc, changes, uri)?,
+                TextDocumentType::MCP(doc) => reparse_doc(doc, changes, uri)?,
             };
             Ok(out)
         }
