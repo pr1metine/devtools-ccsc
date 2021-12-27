@@ -20,7 +20,7 @@ impl LanguageServer for server::Backend {
             Ok(utils::get_path(&uri)?)
         }
         fn get_mcp_ini(path: &PathBuf) -> Result<Ini> {
-            let ini = Ini::load_from_file(utils::find_mcp_file(path)?).map_err(|_| {
+            let ini = Ini::load_from_file_noescape(utils::find_mcp_file(path)?).map_err(|_| {
                 utils::create_server_error(1, "Failed to load MPLAB Project Config".to_owned())
             })?;
 
@@ -122,10 +122,10 @@ impl LanguageServer for server::Backend {
         fn deconstruct_input(params: HoverParams) -> (u32, u32, Url) {
             let HoverParams {
                 text_document_position_params:
-                TextDocumentPositionParams {
-                    position: Position { line, character },
-                    text_document: TextDocumentIdentifier { uri },
-                },
+                    TextDocumentPositionParams {
+                        position: Position { line, character },
+                        text_document: TextDocumentIdentifier { uri },
+                    },
                 ..
             } = params;
             (line, character, uri)
@@ -133,15 +133,15 @@ impl LanguageServer for server::Backend {
         fn get_range(node: Node) -> Range {
             let tree_sitter::Range {
                 start_point:
-                Point {
-                    row: start_line,
-                    column: start_character,
-                },
+                    Point {
+                        row: start_line,
+                        column: start_character,
+                    },
                 end_point:
-                Point {
-                    row: stop_line,
-                    column: stop_character,
-                },
+                    Point {
+                        row: stop_line,
+                        column: stop_character,
+                    },
                 ..
             } = node.range();
             Range {
