@@ -4,13 +4,13 @@ use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 use tree_sitter::{Parser, Point};
 
-use crate::{DiagnosticResult, MPLABProjectConfig, TextDocument, Url, utils};
 use crate::server::{MPLABFile, TextDocumentType};
+use crate::{utils, CCSCResponse, MPLABProjectConfig, TextDocument, Url};
 
 pub fn create_server_error(code: i64, message: String) -> Error {
     let code = ErrorCode::ServerError(code);
@@ -178,8 +178,8 @@ pub fn apply_change(mut target: String, mut diff: String, range: Range<usize>) -
     Ok(target)
 }
 
-pub fn diagnostic_result_ignores_file(uri: Url) -> DiagnosticResult {
-    DiagnosticResult::from_diagnostics(
+pub fn diagnostic_result_ignores_file(uri: Url) -> CCSCResponse {
+    CCSCResponse::from_diagnostics(
         uri,
         vec![Diagnostic::new(
             tower_lsp::lsp_types::Range::default(),
@@ -205,7 +205,7 @@ mod tests {
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 0..1,
             )
-                .unwrap(),
+            .unwrap(),
             "abcdefghijklmnopqrstuvwxyzbcdefghijklmnopqrstuvwxyz"
         );
     }
@@ -234,7 +234,7 @@ mod tests {
                 "abcdefghijklmnopqrstuvwxyz".to_owned(),
                 0..7,
             )
-                .unwrap(),
+            .unwrap(),
             "abcdefghijklmnopqrstuvwxyzhijklmnopqrstuvwxyz"
         );
     }
@@ -247,7 +247,7 @@ mod tests {
                 "defg".to_owned(),
                 0..7,
             )
-                .unwrap(),
+            .unwrap(),
             "defghijklmnopqrstuvwxyz"
         );
     }
@@ -260,7 +260,7 @@ mod tests {
                 "leetcode".to_owned(),
                 4..12,
             )
-                .unwrap(),
+            .unwrap(),
             "abcdleetcodemnopqrstuvwxyz"
         )
     }

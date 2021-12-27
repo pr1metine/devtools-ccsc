@@ -10,7 +10,7 @@ import {
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
-    let executable = context.asAbsolutePath(path.join('..', 'target', 'debug', 'lsp-ccs-c'));
+    let executable = context.asAbsolutePath(path.join('..', 'target', 'debug', 'ls-ccsc'));
 
     let serverOptions: ServerOptions = {
         run: {
@@ -26,7 +26,7 @@ export function activate(context: ExtensionContext) {
     };
 
     client = new LanguageClient(
-        'lsp-ccs-c',
+        'ls-ccsc',
         'CCS C Language Server',
         serverOptions,
         clientOptions

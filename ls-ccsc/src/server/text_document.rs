@@ -72,15 +72,15 @@ impl TextDocument {
             range.map(
                 |Range {
                      start:
-                     Position {
-                         line: start_line,
-                         character: start_character,
-                     },
+                         Position {
+                             line: start_line,
+                             character: start_character,
+                         },
                      end:
-                     Position {
-                         line: end_line,
-                         character: end_character,
-                     },
+                         Position {
+                             line: end_line,
+                             character: end_character,
+                         },
                  }| {
                     (
                         start_line as usize,

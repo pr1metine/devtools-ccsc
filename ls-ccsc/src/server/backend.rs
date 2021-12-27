@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use tower_lsp::Client;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::MessageType;
+use tower_lsp::Client;
 use tree_sitter::Parser;
 
 use crate::server::backend_data::BackendData;
-use crate::server::DiagnosticResult;
+use crate::server::CCSCResponse;
 
 pub struct Backend {
     client: Client,
@@ -36,12 +36,12 @@ impl Backend {
             .await
     }
 
-    pub async fn log_result(&self, result: Result<DiagnosticResult>) {
+    pub async fn handle_response(&self, result: Result<CCSCResponse>) {
         match result {
-            Ok(DiagnosticResult {
-                   logs,
-                   uri_diagnostics
-               }) => {
+            Ok(CCSCResponse {
+                logs,
+                uri_diagnostics,
+            }) => {
                 if let Some(logs) = logs {
                     for log in logs {
                         self.info(log).await;

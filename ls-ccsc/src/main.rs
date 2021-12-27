@@ -1,14 +1,12 @@
 use std::path::PathBuf;
 
 use ini::Ini;
-use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
+use tower_lsp::{LanguageServer, LspService, Server};
 use tree_sitter::{Node, Point};
 
-use crate::server::{
-    Backend, DiagnosticResult, MPLABProjectConfig, TextDocument, TextDocumentType,
-};
+use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument, TextDocumentType};
 
 mod server;
 mod utils;
@@ -49,8 +47,8 @@ impl LanguageServer for server::Backend {
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
-                name: "lsp-ccs-c".to_string(),
-                version: Some("0.1.0".to_string()),
+                name: "ls-ccsc".to_string(),
+                version: Some("0.2.0-alpha".to_string()),
             }),
         })
     }
@@ -61,7 +59,7 @@ impl LanguageServer for server::Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         type DOTDP = DidOpenTextDocumentParams;
-        fn did_open_with_result(this: &Backend, params: DOTDP) -> Result<DiagnosticResult> {
+        fn did_open_with_result(this: &Backend, params: DOTDP) -> Result<CCSCResponse> {
             let DOTDP {
                 text_document: TextDocumentItem { uri, .. },
             } = params;
@@ -72,21 +70,20 @@ impl LanguageServer for server::Backend {
 
             let out = match doc_type {
                 TextDocumentType::Ignored => utils::diagnostic_result_ignores_file(uri),
-                _ => {
-                    DiagnosticResult::from_logs(vec![format!("Document opened: {}", uri.as_str())])
-                }
+                _ => CCSCResponse::from_logs(vec![format!("Document opened: {}", uri.as_str())]),
             };
 
             Ok(out)
         }
 
-        self.log_result(did_open_with_result(self, params)).await;
+        self.handle_response(did_open_with_result(self, params))
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         type DCTDP = DidChangeTextDocumentParams;
         type TDCCE = TextDocumentContentChangeEvent;
-        fn did_change_with_result(this: &Backend, params: DCTDP) -> Result<DiagnosticResult> {
+        fn did_change_with_result(this: &Backend, params: DCTDP) -> Result<CCSCResponse> {
             fn deconstruct_input(params: DidChangeTextDocumentParams) -> (Url, Vec<TDCCE>) {
                 let DCTDP {
                     text_document: VersionedTextDocumentIdentifier { uri, .. },
@@ -94,9 +91,9 @@ impl LanguageServer for server::Backend {
                 } = params;
                 (uri, content_changes)
             }
-            fn reparse_doc(doc: &mut TextDocument, changes: Vec<TDCCE>) -> Result<DiagnosticResult> {
+            fn reparse_doc(doc: &mut TextDocument, changes: Vec<TDCCE>) -> Result<CCSCResponse> {
                 let log = doc.reparse_with_lsp(changes)?;
-                let out = DiagnosticResult::from_logs(vec![format!(
+                let out = CCSCResponse::from_logs(vec![format!(
                     "Document '{}' changed:\n{}\n",
                     doc.absolute_path.display(),
                     log
@@ -117,7 +114,8 @@ impl LanguageServer for server::Backend {
             Ok(out)
         }
 
-        self.log_result(did_change_with_result(self, params)).await;
+        self.handle_response(did_change_with_result(self, params))
+            .await;
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {

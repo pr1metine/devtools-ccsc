@@ -36,13 +36,13 @@
             "type": "object",
             "title": "LSP Configuration",
             "properties": {
-                "lsp-ccs-c.maxNumberOfProblems": {
+                "ls-ccsc.maxNumberOfProblems": {
                     "scope": "resource",
                     "type": "number",
                     "default": 100,
                     "description": "Controls the maximum number of problems produced by the server."
                 },
-                "lsp-ccs-c.trace.server": {
+                "ls-ccsc.trace.server": {
                     "scope": "window",
                     "type": "string",
                     "enum": [
