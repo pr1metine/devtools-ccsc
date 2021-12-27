@@ -46,7 +46,7 @@ file_004=yes
 file_005=yes
 [FILE_INFO]
 file_000=main.c
-file_001=add.h
+file_001=sth\add.h
 file_002=main.SYM
 file_003=main.TRE
 file_004=main.STA

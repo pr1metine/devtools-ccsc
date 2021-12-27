@@ -160,13 +160,17 @@ impl LanguageServer for server::Backend {
                 TextDocumentType::Source(doc) => {
                     let tree = doc.get_syntax_tree()?;
                     let mut cursor = tree.walk();
-                    while cursor.goto_first_child_for_point(pos).is_some() {}
+                    let mut hover_out = String::new();
 
-                    let node = cursor.node();
+                    hover_out.push_str(cursor.node().kind());
+                    while cursor.goto_first_child_for_point(pos).is_some() {
+                        hover_out.push_str(" > ");
+                        hover_out.push_str(cursor.node().kind());
+                    }
 
                     Some(Hover {
-                        contents: HoverContents::Scalar(MarkedString::String(node.kind().into())),
-                        range: Some(get_range(node)),
+                        contents: HoverContents::Scalar(MarkedString::String(hover_out)),
+                        range: Some(get_range(cursor.node())),
                     })
                 }
                 _ => None,
