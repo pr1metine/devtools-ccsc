@@ -8,13 +8,13 @@ use crate::server::TextDocumentType;
 use crate::utils;
 
 #[derive(Default)]
-pub struct BackendData {
+pub struct BackendInner {
     root_path: Option<PathBuf>,
     mcp: Option<MPLABProjectConfig>,
     docs: HashMap<PathBuf, TextDocumentType>,
 }
 
-impl BackendData {
+impl BackendInner {
     pub fn set_root_path(&mut self, root_path: PathBuf) {
         self.root_path = Some(root_path);
     }

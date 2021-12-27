@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
-use tree_sitter::{Parser, Point};
+use tree_sitter::Parser;
 
 use crate::server::{MPLABFile, TextDocumentType};
 use crate::{utils, CCSCResponse, MPLABProjectConfig, TextDocument, Url};
@@ -122,60 +122,40 @@ pub fn is_source_file(path: &PathBuf) -> bool {
     extension == "c" || extension == "cpp" || extension == "h"
 }
 
-pub fn get_column_offsets(input: &String) -> Vec<usize> {
-    input
-        .chars()
-        .enumerate()
-        .filter(|(_, c)| c == &'\n')
-        .map(|(i, _)| i)
-        .fold(vec![0], |mut acc, i| {
-            acc.push(i + 1);
-            acc
-        })
-}
-
-pub fn point_to_byte_from_offsets(point: &Point, offsets: &Vec<usize>) -> usize {
-    let Point { row, column } = *point;
-    offsets[row] + column
-}
-
-pub fn byte_to_point_from_offsets(byte: usize, offsets: &Vec<usize>) -> Point {
-    for (i, &offset) in offsets.iter().enumerate() {
-        if byte < offset {
-            return Point::new(i - 1, byte - offsets[i - 1]);
-        }
-    }
-    Point::new(offsets.len() - 1, byte - offsets[offsets.len() - 1])
-}
-
-pub fn apply_change(mut target: String, mut diff: String, range: Range<usize>) -> Result<String> {
+pub fn apply_change(target: String, diff: String, range: Range<usize>) -> Result<String> {
     let (start_inclusive, end_exclusive) = (range.start, range.end);
-    let replacement_end_exclusive = start_inclusive + diff.len();
 
-    unsafe {
-        let input = diff.as_mut_vec();
-        let destination = target.as_mut_vec();
-        for i in start_inclusive..(end_exclusive).min(replacement_end_exclusive) {
-            *destination.get_mut(i).ok_or(utils::create_server_error(
-                6,
-                format!("Target idx ('{}') out of bounds", i),
-            ))? = *input
-                .get(i - start_inclusive)
-                .ok_or(utils::create_server_error(
-                    6,
-                    format!("Diff idx ('{}') out of bounds", i - start_inclusive),
-                ))?;
-        }
+    let mut out =
+        Vec::<u8>::with_capacity(target.len() + diff.len() - (end_exclusive - start_inclusive));
+    let target = target.as_bytes();
+    let diff = diff.as_bytes();
+
+    for i in 0..start_inclusive {
+        out.push(*target.get(i).ok_or(utils::create_server_error(
+            6,
+            format!("Could not find byte at index {}", i),
+        ))?);
     }
 
-    if replacement_end_exclusive < end_exclusive {
-        for _ in (replacement_end_exclusive)..(end_exclusive) {
-            target.remove(replacement_end_exclusive);
-        }
-    } else if replacement_end_exclusive > end_exclusive {
-        target.insert_str(end_exclusive, &diff[end_exclusive - start_inclusive..]);
+    for &c in diff {
+        out.push(c);
     }
-    Ok(target)
+
+    for i in end_exclusive..target.len() {
+        out.push(*target.get(i).ok_or(utils::create_server_error(
+            6,
+            format!("Could not find byte at index {} ('{:?}')", i, target),
+        ))?);
+    }
+
+    let out = String::from_utf8(out).map_err(|e| {
+        utils::create_server_error(
+            6,
+            format!("Could not convert bytes to string ('{}')", e.to_string()),
+        )
+    })?;
+
+    Ok(out)
 }
 
 pub fn diagnostic_result_ignores_file(uri: Url) -> CCSCResponse {
@@ -262,6 +242,22 @@ mod tests {
             )
             .unwrap(),
             "abcdleetcodemnopqrstuvwxyz"
+        )
+    }
+
+    #[test]
+    fn test_string_change_with_unicode() {
+        assert_eq!(
+            apply_change("äääääääääü".to_owned(), "leßtäüde".to_owned(), 0..2,).unwrap(),
+            "leßtäüdeääääääääü"
+        )
+    }
+
+    #[test]
+    fn test_string_change_with_unicode_mid_sentence() {
+        assert_eq!(
+            apply_change("äääääääääü".to_owned(), "leßtäüde".to_owned(), 4..8,).unwrap(),
+            "ääleßtäüdeäääääü"
         )
     }
 }

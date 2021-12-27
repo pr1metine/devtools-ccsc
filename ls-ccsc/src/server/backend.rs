@@ -5,12 +5,12 @@ use tower_lsp::lsp_types::MessageType;
 use tower_lsp::Client;
 use tree_sitter::Parser;
 
-use crate::server::backend_data::BackendData;
+use crate::server::BackendInner;
 use crate::server::CCSCResponse;
 
 pub struct Backend {
     client: Client,
-    data: Arc<Mutex<BackendData>>,
+    data: Arc<Mutex<BackendInner>>,
     parser: Arc<Mutex<Parser>>,
 }
 
@@ -65,7 +65,7 @@ impl Backend {
         &self.client
     }
 
-    pub fn get_data(&self) -> MutexGuard<BackendData> {
+    pub fn get_data(&self) -> MutexGuard<BackendInner> {
         self.data.lock().unwrap()
     }
 

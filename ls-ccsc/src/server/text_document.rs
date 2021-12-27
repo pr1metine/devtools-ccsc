@@ -5,8 +5,8 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Parser, Point, Tree};
 
+use crate::server::TextDocumentSource;
 use crate::utils;
-use crate::utils::{byte_to_point_from_offsets, point_to_byte_from_offsets};
 
 #[derive(Clone)]
 pub enum TextDocumentType {
@@ -19,8 +19,7 @@ pub enum TextDocumentType {
 #[derive(Clone)]
 pub struct TextDocument {
     pub absolute_path: PathBuf,
-    pub raw: String,
-    pub column_offsets: Vec<usize>,
+    pub source: TextDocumentSource,
     pub syntax_tree: Option<Tree>,
     pub parser: Arc<Mutex<Parser>>,
 }
@@ -28,15 +27,15 @@ pub struct TextDocument {
 type TDCCE = TextDocumentContentChangeEvent;
 impl TextDocument {
     pub fn new(absolute_path: PathBuf, raw: String, parser: Arc<Mutex<Parser>>) -> TextDocument {
-        let column_offsets = utils::get_column_offsets(&raw);
+        let source = TextDocumentSource::from(raw);
+
         let mut parser_lock = parser.lock().unwrap();
-        let syntax_tree = parser_lock.parse(&raw, None);
+        let syntax_tree = parser_lock.parse(source.get_raw(), None);
         std::mem::drop(parser_lock);
 
         TextDocument {
             absolute_path,
-            column_offsets,
-            raw,
+            source,
             syntax_tree,
             parser,
         }
@@ -65,7 +64,7 @@ impl TextDocument {
     pub fn reparse_with_lsp(&mut self, params: Vec<TDCCE>) -> Result<String> {
         type In1 = (usize, usize, usize, usize, String);
         type In2 = (Point, Point, String);
-        type In3 = (String, Vec<usize>, InputEdit);
+        type In3 = (TextDocumentSource, InputEdit);
         fn deconstruct_input(tdcce: TextDocumentContentChangeEvent) -> Option<In1> {
             let TextDocumentContentChangeEvent { range, text, .. } = tdcce;
 
@@ -98,16 +97,20 @@ impl TextDocument {
             let old_end_position = Point::new(end_line as usize, end_character as usize);
             (start_position, old_end_position, changed)
         }
-        fn preprocess_for_reparsing(input: In2, raw: String, offsets: &Vec<usize>) -> Result<In3> {
+        fn preprocess_for_reparsing(input: In2, source: TextDocumentSource) -> Result<In3> {
             let (start_position, old_end_position, changed) = input;
-            let start_byte = point_to_byte_from_offsets(&start_position, offsets);
-            let old_end_byte = point_to_byte_from_offsets(&old_end_position, offsets);
-            let new_end_byte = start_byte + changed.len() - 1;
+            let start_byte = source.get_offset_for_point(&start_position)?;
+            let old_end_byte = source.get_offset_for_point(&old_end_position)?;
+            let new_end_byte = start_byte + changed.len();
 
-            let curr_input = utils::apply_change(raw, changed, start_byte..old_end_byte)?;
+            let curr_input = utils::apply_change(
+                source.get_raw().to_owned(),
+                changed,
+                start_byte..old_end_byte,
+            )?;
 
-            let column_offsets = utils::get_column_offsets(&curr_input);
-            let new_end_position = byte_to_point_from_offsets(new_end_byte, &column_offsets);
+            let source = TextDocumentSource::from(curr_input);
+            let new_end_position = source.get_point_from_byte_idx(new_end_byte)?;
 
             let edit = InputEdit {
                 start_byte,
@@ -118,34 +121,34 @@ impl TextDocument {
                 new_end_position,
             };
 
-            Ok((curr_input, column_offsets, edit))
+            Ok((source, edit))
         }
 
-        let mut log = String::with_capacity(self.raw.len());
+        let mut log = String::with_capacity(self.source.get_raw().len());
         for param in params
             .into_iter()
             .filter_map(|param| deconstruct_input(param))
             .map(|input| construct_points_and_change(input))
         {
-            let (input, offsets, edit) =
-                preprocess_for_reparsing(param, self.raw.clone(), &self.column_offsets)?;
-            let raw = self.reparse(input, offsets, edit)?;
+            let (input, edit) = preprocess_for_reparsing(param, self.source.clone())?;
+            let raw = self.reparse(input, edit)?;
             log.push_str(raw);
+            log.push_str("\n\n");
+            log.push_str(self.get_syntax_tree()?.root_node().to_sexp().as_str());
             log.push_str("\n\n---\n\n");
         }
 
         Ok(log)
     }
 
-    pub fn reparse(&mut self, input: String, offsets: Vec<usize>, edit: InputEdit) -> Result<&str> {
+    pub fn reparse(&mut self, content: TextDocumentSource, edit: InputEdit) -> Result<&str> {
         let tree = self.get_mut_syntax_tree()?;
         tree.edit(&edit);
         let mut parser = self.parser.lock().unwrap();
-        let tree = parser.parse(&input, self.syntax_tree.as_ref());
+        let tree = parser.parse(content.get_raw(), self.syntax_tree.as_ref());
 
-        self.column_offsets = offsets;
-        self.raw = input;
+        self.source = content;
         self.syntax_tree = tree;
-        Ok(self.raw.as_str())
+        Ok(self.source.get_raw())
     }
 }
