@@ -4,7 +4,7 @@ use ini::Ini;
 use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
-use tree_sitter::{Node, Point};
+use tree_sitter::Point;
 
 use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument, TextDocumentType};
 
@@ -144,31 +144,6 @@ impl LanguageServer for server::Backend {
             } = params;
             (line, character, uri)
         }
-        fn get_range(node: Node) -> Range {
-            let tree_sitter::Range {
-                start_point:
-                    Point {
-                        row: start_line,
-                        column: start_character,
-                    },
-                end_point:
-                    Point {
-                        row: stop_line,
-                        column: stop_character,
-                    },
-                ..
-            } = node.range();
-            Range {
-                start: Position {
-                    line: start_line as u32,
-                    character: start_character as u32,
-                },
-                end: Position {
-                    line: stop_line as u32,
-                    character: stop_character as u32,
-                },
-            }
-        }
         fn get_hover_information(pos: Point, doc_type: &TextDocumentType) -> Result<Option<Hover>> {
             let out = match doc_type {
                 TextDocumentType::Source(doc) => {
@@ -184,7 +159,7 @@ impl LanguageServer for server::Backend {
 
                     Some(Hover {
                         contents: HoverContents::Scalar(MarkedString::String(hover_out)),
-                        range: Some(get_range(cursor.node())),
+                        range: Some(utils::get_range(&cursor.node())),
                     })
                 }
                 _ => None,

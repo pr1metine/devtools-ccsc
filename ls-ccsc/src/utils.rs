@@ -3,6 +3,8 @@ use std::path::PathBuf;
 
 use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position};
+use tree_sitter::{Node, Point};
 
 use crate::{Url, utils};
 
@@ -84,6 +86,41 @@ pub fn apply_change(target: String, diff: String, range: Range<usize>) -> Result
     })?;
 
     Ok(out)
+}
+
+pub fn get_range(node: &Node) -> tower_lsp::lsp_types::Range {
+    let tree_sitter::Range {
+        start_point:
+        Point {
+            row: start_line,
+            column: start_character,
+        },
+        end_point: Point {
+            row: stop_line,
+            column: stop_character,
+        },
+        ..
+    } = node.range();
+    tower_lsp::lsp_types::Range {
+        start: Position {
+            line: start_line as u32,
+            character: start_character as u32,
+        },
+        end: Position {
+            line: stop_line as u32,
+            character: stop_character as u32,
+        },
+    }
+}
+
+pub fn create_syntax_diagnostic(range: tower_lsp::lsp_types::Range, msg: &str) -> Diagnostic {
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::Error),
+        message: format!("Syntax error: '{}'", msg),
+        source: Some("tree-sitter-ccsc".to_owned()),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]

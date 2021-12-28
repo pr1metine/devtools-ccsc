@@ -135,6 +135,7 @@ impl TextDocument {
         type In1 = (usize, usize, usize, usize, String);
         type In2 = (Point, Point, String);
         type In3 = (TextDocumentSource, InputEdit);
+        type In4 = (TextDocumentSource, Option<Tree>);
         fn deconstruct_input(tdcce: TextDocumentContentChangeEvent) -> Option<In1> {
             let TextDocumentContentChangeEvent { range, text, .. } = tdcce;
 
@@ -193,6 +194,15 @@ impl TextDocument {
 
             Ok((source, edit))
         }
+        fn reparse_to_tree(input: In3, parser: Arc<Mutex<Parser>>, old_tree: &mut Tree) -> In4 {
+            let (source, edit) = input;
+            old_tree.edit(&edit);
+
+            let mut parser_lock = parser.lock().unwrap();
+            let tree = parser_lock.parse(source.get_raw(), Some(old_tree));
+
+            (source, tree)
+        }
 
         let mut log = String::with_capacity(self.source.get_raw().len());
         for param in params
@@ -200,9 +210,13 @@ impl TextDocument {
             .filter_map(|param| deconstruct_input(param))
             .map(|input| construct_points_and_change(input))
         {
-            let (input, edit) = preprocess_for_reparsing(param, self.source.clone())?;
-            let raw = self.reparse(input, edit)?;
-            log.push_str(raw);
+            let param = preprocess_for_reparsing(param, self.source.clone())?;
+            let (source, tree) =
+                reparse_to_tree(param, self.parser.clone(), self.get_mut_syntax_tree()?);
+            self.source = source;
+            self.syntax_tree = tree;
+
+            log.push_str(self.source.get_raw());
             log.push_str("\n\n");
             log.push_str(self.get_syntax_tree()?.root_node().to_sexp().as_str());
             log.push_str("\n\n---\n\n");
@@ -211,44 +225,7 @@ impl TextDocument {
         Ok(log)
     }
 
-    pub fn reparse(&mut self, content: TextDocumentSource, edit: InputEdit) -> Result<&str> {
-        let tree = self.get_mut_syntax_tree()?;
-        tree.edit(&edit);
-        let mut parser = self.parser.lock().unwrap();
-        let tree = parser.parse(content.get_raw(), self.syntax_tree.as_ref());
-
-        self.source = content;
-        self.syntax_tree = tree;
-        Ok(self.source.get_raw())
-    }
-
     pub fn get_syntax_errors(&self) -> Result<Vec<Diagnostic>> {
-        fn convert_ts_range_to_lsp_range(range: tree_sitter::Range) -> Range {
-            let tree_sitter::Range {
-                start_point:
-                    Point {
-                        row: start_line,
-                        column: start_character,
-                    },
-                end_point:
-                    Point {
-                        row: end_line,
-                        column: end_character,
-                    },
-                ..
-            } = range;
-
-            Range {
-                start: Position {
-                    line: start_line as u32,
-                    character: start_character as u32,
-                },
-                end: Position {
-                    line: end_line as u32,
-                    character: end_character as u32,
-                },
-            }
-        }
         fn traverse(mut cursor: TreeCursor, diagnostics: &mut Vec<Diagnostic>) {
             let node = cursor.node();
             if !node.has_error() {
@@ -256,9 +233,9 @@ impl TextDocument {
             }
 
             if node.is_error() || node.is_missing() {
-                diagnostics.push(Diagnostic::new_simple(
-                    convert_ts_range_to_lsp_range(node.range()),
-                    node.kind().to_string(),
+                diagnostics.push(utils::create_syntax_diagnostic(
+                    utils::get_range(&node),
+                    node.kind(),
                 ));
             };
 
