@@ -31,7 +31,7 @@ impl LanguageServer for server::Backend {
         let ini = get_mcp_ini(&root_path)?;
         let config = MPLABProjectConfig::from_ini_to_lsp_result(&ini)?;
 
-        let docs = utils::generate_text_documents(&config, &root_path, self.get_parser())?;
+        let docs = TextDocumentType::from_mcp(&config, &root_path, self.get_parser())?;
 
         let mut data = self.get_data();
         data.set_root_path(root_path);
@@ -54,6 +54,7 @@ impl LanguageServer for server::Backend {
     }
 
     async fn shutdown(&self) -> Result<()> {
+        self.get_data().clear();
         Ok(())
     }
 
@@ -69,7 +70,7 @@ impl LanguageServer for server::Backend {
             let doc_type = data.get_doc_or_ignored(path);
 
             let out = match doc_type {
-                TextDocumentType::Ignored => utils::diagnostic_result_ignores_file(uri),
+                TextDocumentType::Ignored => CCSCResponse::ignore_file(uri),
                 TextDocumentType::Source(doc) => generate_response(uri, doc.get_syntax_errors()?),
                 TextDocumentType::MCP(doc) => generate_response(uri, doc.get_syntax_errors()?),
             };
@@ -120,7 +121,7 @@ impl LanguageServer for server::Backend {
             let mut data = this.get_data();
             let doc = data.get_doc_or_ignored(path);
             let out = match doc {
-                TextDocumentType::Ignored => utils::diagnostic_result_ignores_file(uri),
+                TextDocumentType::Ignored => CCSCResponse::ignore_file(uri),
                 TextDocumentType::Source(doc) => reparse_doc(doc, changes, uri)?,
                 TextDocumentType::MCP(doc) => reparse_doc(doc, changes, uri)?,
             };

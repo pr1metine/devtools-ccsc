@@ -39,9 +39,7 @@ impl BackendInner {
     }
 
     pub fn insert_docs(&mut self, docs: HashMap<PathBuf, TextDocumentType>) {
-        docs.into_iter().for_each(|(path, doc)| {
-            self.docs.insert(path, doc);
-        });
+        self.docs.extend(docs);
     }
 
     pub fn get_doc_or_ignored(&mut self, path: PathBuf) -> &mut TextDocumentType {
@@ -53,5 +51,11 @@ impl BackendInner {
             4,
             format!("No document found for path: {}", path.display()),
         ))
+    }
+
+    pub fn clear(&mut self) {
+        self.root_path = None;
+        self.docs.clear();
+        self.mcp = None;
     }
 }

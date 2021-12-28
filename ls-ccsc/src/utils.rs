@@ -1,16 +1,10 @@
-use std::collections::HashMap;
-use std::io::Read;
 use std::ops::Range;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
-use tower_lsp::jsonrpc::Result;
 use tower_lsp::jsonrpc::{Error, ErrorCode};
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
-use tree_sitter::Parser;
+use tower_lsp::jsonrpc::Result;
 
-use crate::server::{MPLABFile, TextDocumentType};
-use crate::{utils, CCSCResponse, MPLABProjectConfig, TextDocument, Url};
+use crate::{Url, utils};
 
 pub fn create_server_error(code: i64, message: String) -> Error {
     let code = ErrorCode::ServerError(code);
@@ -43,72 +37,6 @@ pub fn get_path(uri: &Url) -> Result<PathBuf> {
         .map_err(|_| utils::create_server_error(1, "Failed to resolve Root URI".to_owned()))?;
 
     Ok(path)
-}
-
-pub fn generate_text_documents(
-    mcp: &MPLABProjectConfig,
-    root_path: &PathBuf,
-    parser: Arc<Mutex<Parser>>,
-) -> Result<HashMap<PathBuf, TextDocumentType>> {
-    fn read_string(path: &PathBuf) -> Result<String> {
-        let mut file = std::fs::File::open(path).map_err(|e| {
-            utils::create_server_error(
-                6,
-                format!(
-                    "Could not open file '{}' ('{}')",
-                    path.display(),
-                    e.to_string()
-                ),
-            )
-        })?;
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).map_err(|e| {
-            utils::create_server_error(
-                6,
-                format!(
-                    "Could not read file '{}' ('{}')",
-                    path.display(),
-                    e.to_string()
-                ),
-            )
-        })?;
-        Ok(contents)
-    }
-    fn deconstruct_path(f: &MPLABFile, root_path: &PathBuf) -> (PathBuf, bool) {
-        let MPLABFile {
-            path,
-            is_generated,
-            is_other,
-            ..
-        } = f;
-        (root_path.join(path), *is_generated || *is_other)
-    }
-    fn insert_raw_string(tup: (PathBuf, bool)) -> Option<(PathBuf, String, bool)> {
-        read_string(&tup.0).map(|s| (tup.0, s, tup.1)).ok()
-    }
-    fn create_text_document_type(
-        tup: (PathBuf, String, bool),
-        parser: Arc<Mutex<Parser>>,
-    ) -> (PathBuf, TextDocumentType) {
-        let (p, raw, to_be_ignored) = tup;
-        let td = if !to_be_ignored && is_source_file(&p) {
-            TextDocumentType::Source(TextDocument::new(p.clone(), raw, parser.clone()))
-        } else {
-            TextDocumentType::Ignored
-        };
-
-        (p, td)
-    }
-
-    let out = mcp
-        .files
-        .values()
-        .map(|f| deconstruct_path(f, root_path))
-        .filter_map(|tup| insert_raw_string(tup))
-        .map(|tup| create_text_document_type(tup, parser.clone()))
-        .collect::<HashMap<_, _>>();
-
-    Ok(out)
 }
 
 pub fn is_source_file(path: &PathBuf) -> bool {
@@ -156,21 +84,6 @@ pub fn apply_change(target: String, diff: String, range: Range<usize>) -> Result
     })?;
 
     Ok(out)
-}
-
-pub fn diagnostic_result_ignores_file(uri: Url) -> CCSCResponse {
-    CCSCResponse::from_diagnostics(
-        uri,
-        vec![Diagnostic::new(
-            tower_lsp::lsp_types::Range::default(),
-            Some(DiagnosticSeverity::Warning),
-            None,
-            Some(String::from("ls-ccsc")),
-            "Document is ignored".to_string(),
-            None,
-            None,
-        )],
-    )
 }
 
 #[cfg(test)]
