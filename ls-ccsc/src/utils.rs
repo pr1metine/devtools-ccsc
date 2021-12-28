@@ -113,7 +113,7 @@ pub fn get_range(node: &Node) -> tower_lsp::lsp_types::Range {
     }
 }
 
-pub fn create_syntax_diagnostic(range: tower_lsp::lsp_types::Range, msg: &str) -> Diagnostic {
+pub fn create_syntax_diagnostic(range: tower_lsp::lsp_types::Range, msg: String) -> Diagnostic {
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::Error),

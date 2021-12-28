@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Diagnostic, Position, Range, TextDocumentContentChangeEvent};
-use tree_sitter::{InputEdit, Parser, Point, Tree, TreeCursor};
+use tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
 
 use crate::{MPLABProjectConfig, utils};
 use crate::server::{MPLABFile, TextDocumentSource};
@@ -226,28 +226,39 @@ impl TextDocument {
     }
 
     pub fn get_syntax_errors(&self) -> Result<Vec<Diagnostic>> {
-        fn traverse(mut cursor: TreeCursor, diagnostics: &mut Vec<Diagnostic>) {
+        fn traverse(mut cursor: TreeCursor, diagnostics: &mut Vec<Diagnostic>, raw: &[u8]) {
             let node = cursor.node();
-            if !node.has_error() {
-                return;
-            }
 
-            if node.is_error() || node.is_missing() {
+            if node.is_error() {
+                let msg = if node.child_count() == 0 && node.byte_range().len() + 1 > 0 {
+                    let unexpected_char = node.utf8_text(raw).unwrap();
+                    format!("UNEXPECTED '{}'", unexpected_char)
+                } else {
+                    node.kind().to_owned()
+                };
+
                 diagnostics.push(utils::create_syntax_diagnostic(
                     utils::get_range(&node),
-                    node.kind(),
+                    msg,
                 ));
             };
 
+            if node.is_missing() {
+                diagnostics.push(utils::create_syntax_diagnostic(
+                    utils::get_range(&node),
+                    format!("MISSING {}", node.kind()),
+                ));
+            }
+
             cursor.goto_first_child();
             for _ in 0..node.child_count() {
-                traverse(cursor.node().walk(), diagnostics);
+                traverse(cursor.node().walk(), diagnostics, raw);
                 cursor.goto_next_sibling();
             }
         }
 
         let mut diagnostics = Vec::new();
-        traverse(self.get_syntax_tree()?.walk(), &mut diagnostics);
+        traverse(self.get_syntax_tree()?.walk(), &mut diagnostics, self.source.get_raw().as_bytes());
         Ok(diagnostics)
     }
 }
