@@ -163,7 +163,7 @@ impl LanguageServer for server::Backend {
                             MarkedString::String(
                                 doc.included_files
                                     .iter()
-                                    .filter_map(|s| s.to_str().map((|s2| String::from(s2))))
+                                    .filter_map(|s| s.to_str().map(|s2| String::from(s2)))
                                     .reduce(|acc, x| format!("{}\n{}", acc, x))
                                     .unwrap_or("".to_string()),
                             ),

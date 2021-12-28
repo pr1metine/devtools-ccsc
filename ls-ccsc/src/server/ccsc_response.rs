@@ -21,6 +21,7 @@ impl CCSCResponse {
         CCSCResponse::new(None, Some((uri, diagnostics)))
     }
 
+    #[allow(dead_code)]
     pub fn from_logs(logs: Vec<String>) -> Self {
         CCSCResponse::new(Some(logs), None)
     }
