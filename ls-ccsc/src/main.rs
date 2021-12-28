@@ -158,7 +158,16 @@ impl LanguageServer for server::Backend {
                     }
 
                     Some(Hover {
-                        contents: HoverContents::Scalar(MarkedString::String(hover_out)),
+                        contents: HoverContents::Array(vec![
+                            MarkedString::String(hover_out),
+                            MarkedString::String(
+                                doc.included_files
+                                    .iter()
+                                    .filter_map(|s| s.to_str().map((|s2| String::from(s2))))
+                                    .reduce(|acc, x| format!("{}\n{}", acc, x))
+                                    .unwrap_or("".to_string()),
+                            ),
+                        ]),
                         range: Some(utils::get_range(&cursor.node())),
                     })
                 }

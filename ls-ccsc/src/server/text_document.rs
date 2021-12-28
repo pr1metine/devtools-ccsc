@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Diagnostic, Position, Range, TextDocumentContentChangeEvent};
-use tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
+use tree_sitter::{InputEdit, Node, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
 
 use crate::{MPLABProjectConfig, utils};
 use crate::server::{MPLABFile, TextDocumentSource};
@@ -92,22 +92,60 @@ pub struct TextDocument {
     pub source: TextDocumentSource,
     pub syntax_tree: Option<Tree>,
     pub parser: Arc<Mutex<Parser>>,
+    pub included_files: HashSet<PathBuf>, // TODO: Detect cyclic includes
 }
 
 type TDCCE = TextDocumentContentChangeEvent;
 impl TextDocument {
     pub fn new(absolute_path: PathBuf, raw: String, parser: Arc<Mutex<Parser>>) -> TextDocument {
+        fn get_included_files(
+            root_node: Node,
+            source: &[u8],
+            root_path: &PathBuf,
+        ) -> HashSet<PathBuf> {
+            // TODO: Cache these queries
+            let query = Query::new(
+                tree_sitter_ccsc::language(),
+                "(preproc_include path: (_) @path) @include",
+            )
+                .unwrap();
+            let include_idx = query.capture_index_for_name("include").unwrap();
+            let path_idx = query.capture_index_for_name("path").unwrap();
+            let mut query_cursor = QueryCursor::new();
+
+            let out = query_cursor
+                .matches(&query, root_node, source)
+                .filter(|m| {
+                    !m.nodes_for_capture_index(include_idx)
+                        .any(|c| c.has_error())
+                })
+                .filter_map(|m| m.nodes_for_capture_index(path_idx).next())
+                .filter_map(|c| c.utf8_text(source).ok())
+                .filter(|path_str| path_str.len() > 2)
+                .map(|path_str| root_path.join(&path_str[1..path_str.len() - 1]))
+                .collect::<HashSet<_>>();
+
+            out
+        }
+
         let source = TextDocumentSource::from(raw);
 
         let mut parser_lock = parser.lock().unwrap();
         let syntax_tree = parser_lock.parse(source.get_raw(), None);
         std::mem::drop(parser_lock);
 
+        let included_files = get_included_files(
+            syntax_tree.as_ref().unwrap().root_node(),
+            source.get_raw().as_bytes(),
+            &absolute_path,
+        );
+
         TextDocument {
             absolute_path,
             source,
             syntax_tree,
             parser,
+            included_files,
         }
     }
 
@@ -258,7 +296,11 @@ impl TextDocument {
         }
 
         let mut diagnostics = Vec::new();
-        traverse(self.get_syntax_tree()?.walk(), &mut diagnostics, self.source.get_raw().as_bytes());
+        traverse(
+            self.get_syntax_tree()?.walk(),
+            &mut diagnostics,
+            self.source.get_raw().as_bytes(),
+        );
         Ok(diagnostics)
     }
 }
