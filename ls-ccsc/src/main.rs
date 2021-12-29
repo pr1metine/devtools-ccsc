@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use ini::Ini;
-use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
+use tower_lsp::{LanguageServer, LspService, Server};
 use tree_sitter::Point;
 
 use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument, TextDocumentType};

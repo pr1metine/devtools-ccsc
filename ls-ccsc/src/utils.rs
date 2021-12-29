@@ -1,12 +1,12 @@
 use std::ops::Range;
 use std::path::PathBuf;
 
-use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::jsonrpc::{Error, ErrorCode};
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position};
 use tree_sitter::{Node, Point};
 
-use crate::{Url, utils};
+use crate::{utils, Url};
 
 pub fn create_server_error(code: i64, message: String) -> Error {
     let code = ErrorCode::ServerError(code);
@@ -91,10 +91,10 @@ pub fn apply_change(target: String, diff: String, range: Range<usize>) -> Result
 pub fn get_range(node: &Node) -> tower_lsp::lsp_types::Range {
     let tree_sitter::Range {
         start_point:
-        Point {
-            row: start_line,
-            column: start_character,
-        },
+            Point {
+                row: start_line,
+                column: start_character,
+            },
         end_point: Point {
             row: stop_line,
             column: stop_character,

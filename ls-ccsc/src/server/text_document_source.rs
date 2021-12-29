@@ -15,19 +15,38 @@ impl TextDocumentSource {
     }
 
     pub fn get_offset_for_point(&self, point: &Point) -> Result<usize> {
-        let Point { row, column } = *point;
-        let out = self
-            .positions
-            .get(row)
-            .ok_or(utils::create_server_error(
+        let Point { row, mut column } = *point;
+        let row_vec: &Vec<usize> = if row < self.positions.len() {
+            self.positions.get(row).ok_or(utils::create_server_error(
                 9,
-                format!("Row out of bounds ({}, {})", row, column),
+                format!(
+                    "Row out of bounds in spite of bound checking ({}, {})",
+                    row, column
+                ),
             ))?
-            .get(column)
-            .ok_or(utils::create_server_error(
+        } else {
+            let out = self.positions.last().ok_or(utils::create_server_error(
                 9,
-                format!("Column out of bounds ({}, {})", row, column),
+                format!("No rows in content string even though the string is guaranteed to have at least one row at all times ({}, {})", row, column),
             ))?;
+            column = usize::MAX;
+            out
+        };
+
+        let out = if column < row_vec.len() {
+            row_vec.get(column).ok_or(utils::create_server_error(
+                9,
+                format!(
+                    "Column out of bounds in spite of bound checking ({}, {})",
+                    row, column
+                ),
+            ))?
+        } else {
+            row_vec.last().ok_or(utils::create_server_error(
+                9,
+                format!("No columns in content string even though the string is guaranteed to have at least one character in a row at all times ({}, {})", row, column),
+            ))?
+        };
 
         Ok(*out)
     }
@@ -82,6 +101,9 @@ impl From<String> for TextDocumentSource {
                 curr_line = Vec::<usize>::new();
             }
         }
+
+        // Push EOF
+        curr_line.push(curr_character_offset);
         positions.push(curr_line);
 
         Self { raw, positions }

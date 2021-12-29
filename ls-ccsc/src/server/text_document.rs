@@ -7,8 +7,8 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Diagnostic, Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Node, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
 
-use crate::{MPLABProjectConfig, utils};
 use crate::server::{MPLABFile, TextDocumentSource};
+use crate::{utils, MPLABProjectConfig};
 
 #[derive(Clone)]
 pub enum TextDocumentType {
@@ -96,6 +96,7 @@ pub struct TextDocument {
 }
 
 type TDCCE = TextDocumentContentChangeEvent;
+
 impl TextDocument {
     pub fn new(absolute_path: PathBuf, raw: String, parser: Arc<Mutex<Parser>>) -> TextDocument {
         fn get_included_files(
@@ -108,7 +109,7 @@ impl TextDocument {
                 tree_sitter_ccsc::language(),
                 "(preproc_include path: (_) @path) @include",
             )
-                .unwrap();
+            .unwrap();
             let include_idx = query.capture_index_for_name("include").unwrap();
             let path_idx = query.capture_index_for_name("path").unwrap();
             let mut query_cursor = QueryCursor::new();
@@ -174,30 +175,34 @@ impl TextDocument {
         type In2 = (Point, Point, String);
         type In3 = (TextDocumentSource, InputEdit);
         type In4 = (TextDocumentSource, Option<Tree>);
-        fn deconstruct_input(tdcce: TextDocumentContentChangeEvent) -> Option<In1> {
+        fn deconstruct_input(tdcce: TextDocumentContentChangeEvent) -> In1 {
             let TextDocumentContentChangeEvent { range, text, .. } = tdcce;
 
-            range.map(
-                |Range {
-                     start:
-                         Position {
-                             line: start_line,
-                             character: start_character,
-                         },
-                     end:
-                         Position {
-                             line: end_line,
-                             character: end_character,
-                         },
-                 }| {
-                    (
-                        start_line as usize,
-                        end_line as usize,
-                        start_character as usize,
-                        end_character as usize,
-                        text,
-                    )
+            let Range {
+                start:
+                    Position {
+                        line: start_line,
+                        character: start_character,
+                    },
+                end:
+                    Position {
+                        line: end_line,
+                        character: end_character,
+                    },
+            } = range.unwrap_or(Range {
+                start: Default::default(),
+                end: Position {
+                    line: u32::MAX,
+                    character: u32::MAX,
                 },
+            });
+
+            (
+                start_line as usize,
+                end_line as usize,
+                start_character as usize,
+                end_character as usize,
+                text,
             )
         }
         fn construct_points_and_change(input: In1) -> In2 {
@@ -245,7 +250,7 @@ impl TextDocument {
         let mut log = String::with_capacity(self.source.get_raw().len());
         for param in params
             .into_iter()
-            .filter_map(|param| deconstruct_input(param))
+            .map(|param| deconstruct_input(param))
             .map(|input| construct_points_and_change(input))
         {
             let param = preprocess_for_reparsing(param, self.source.clone())?;
