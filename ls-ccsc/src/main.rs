@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -77,12 +78,20 @@ impl LanguageServer for server::Backend {
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
         let DidChangeWatchedFilesParams { changes } = params;
 
+        // 0th capture group: Entire match
+        // 1st capture group: Error type
+        // 2nd capture group: Error code
+        // 3rd capture group: File path
+        // 4th capture group: Line number
+        // 5th capture group: Character start
+        // 6th capture group: Character end
+        // 7th capture group: Error message
         let regex = Regex::new(
             r#"^>>>\s+([a-zA-Z]+)\s+(\d+)\s+"([^"\n]*)"\s+Line\s+(\d+)\((\d+),(\d+)\): (.*)$"#,
         )
             .unwrap();
 
-        let errors = changes
+        let diagnostics = changes
             .into_iter()
             .filter_map(|change| change.uri.to_file_path().ok())
             .filter_map(|path| File::open(path).ok())
@@ -95,42 +104,45 @@ impl LanguageServer for server::Backend {
                     .lines()
                     .filter_map(|line| regex.captures(line))
                     .map(|captures| {
-                        let error_type = captures.get(1).unwrap().as_str().to_owned();
-                        let error_code = captures.get(2).unwrap().as_str().to_owned();
+                        let severity = match captures.get(1).unwrap().as_str() {
+                            _ => DiagnosticSeverity::Error,
+                        };
+                        let error_code = captures.get(2).unwrap().as_str().parse::<i32>().unwrap();
                         let path = captures.get(3).unwrap().as_str().to_owned();
-                        let line = captures.get(4).unwrap().as_str().to_owned();
-                        let character_start = captures.get(5).unwrap().as_str().to_owned();
-                        let character_end = captures.get(6).unwrap().as_str().to_owned();
+                        let line = captures.get(4).unwrap().as_str().parse::<u32>().unwrap();
+                        let character_start =
+                            captures.get(5).unwrap().as_str().parse::<u32>().unwrap();
+                        let character_end =
+                            captures.get(6).unwrap().as_str().parse::<u32>().unwrap();
                         let message = captures.get(7).unwrap().as_str().to_owned();
 
-                        (
-                            error_type,
-                            error_code,
-                            path,
-                            line,
-                            character_start,
-                            character_end,
+                        let uri = Url::from_file_path(path).unwrap();
+
+                        let diagnostic = Diagnostic {
+                            severity: Some(severity),
+                            code: Some(NumberOrString::Number(error_code)),
+                            range: Range {
+                                start: Position::new(line, character_start),
+                                end: Position::new(line, character_end),
+                            },
                             message,
-                        )
-                    })
-                    .map(|captures| {
-                        format!(
-                            "{}:{}:{}:{}:{}:{}:{}",
-                            captures.0,
-                            captures.1,
-                            captures.2,
-                            captures.3,
-                            captures.4,
-                            captures.5,
-                            captures.6
-                        )
+                            source: Some("ccsc-compiler".to_string()),
+                            ..Default::default()
+                        };
+
+                        (uri, diagnostic)
                     })
                     .collect::<Vec<_>>()
             })
-            .collect::<Vec<_>>();
+            .fold(HashMap::new(), |mut map, (uri, diagnostic)| {
+                map.entry(uri).or_insert_with(Vec::new).push(diagnostic);
+                map
+            });
 
-        self.handle_response(Ok(CCSCResponse::from_logs(errors)))
-            .await;
+        for (uri, diagnostics) in diagnostics {
+            self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostics)))
+                .await;
+        }
     }
 
     async fn shutdown(&self) -> Result<()> {
