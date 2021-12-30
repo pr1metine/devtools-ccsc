@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ini::Ini;
-use regex::Regex;
+use regex::{Captures, Regex};
 use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
@@ -14,6 +14,22 @@ use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument, Tex
 
 mod server;
 mod utils;
+
+use lazy_static::lazy_static;
+
+lazy_static! {
+    // 0th capture group: Entire match
+    // 1st capture group: Error type
+    // 2nd capture group: Error code
+    // 3rd capture group: File path
+    // 4th capture group: Line number
+    // 5th capture group: Character start
+    // 6th capture group: Character end
+    // 7th capture group: Error message
+    static ref COMPILER_ERROR_MATCHER: Regex = Regex::new(
+        r#"^>>>\s+([a-zA-Z]+)\s+(\d+)\s+"([^"\n]*)"\s+Line\s+(\d+)\((\d+),(\d+)\): (.*)$"#,
+    ).unwrap();
+}
 
 #[tower_lsp::async_trait]
 impl LanguageServer for server::Backend {
@@ -75,79 +91,85 @@ impl LanguageServer for server::Backend {
             .unwrap();
     }
 
+    async fn shutdown(&self) -> Result<()> {
+        self.get_data().clear();
+        Ok(())
+    }
+
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
-        let DidChangeWatchedFilesParams { changes } = params;
+        fn deconstruct_to_paths(params: DidChangeWatchedFilesParams) -> Vec<PathBuf> {
+            let DidChangeWatchedFilesParams { changes } = params;
 
-        // 0th capture group: Entire match
-        // 1st capture group: Error type
-        // 2nd capture group: Error code
-        // 3rd capture group: File path
-        // 4th capture group: Line number
-        // 5th capture group: Character start
-        // 6th capture group: Character end
-        // 7th capture group: Error message
-        let regex = Regex::new(
-            r#"^>>>\s+([a-zA-Z]+)\s+(\d+)\s+"([^"\n]*)"\s+Line\s+(\d+)\((\d+),(\d+)\): (.*)$"#,
-        )
-            .unwrap();
+            changes
+                .into_iter()
+                .filter_map(|change| change.uri.to_file_path().ok())
+                .collect()
+        }
+        fn get_diagnostics_from_err_paths<P: AsRef<Path>>(paths: Vec<P>) -> HashMap<Url, Vec<Diagnostic>> {
+            type In1 = (String, i32, String, u32, u32, u32, String);
+            fn get_captures_from_match(captures: Captures) -> std::result::Result<In1, ()> {
+                fn get_capture_as_str<'a>(idx: usize, captures: &'a Captures) -> std::result::Result<&'a str, ()> {
+                    Ok(captures.get(idx).ok_or(())?.as_str())
+                }
 
-        let diagnostics = changes
-            .into_iter()
-            .filter_map(|change| change.uri.to_file_path().ok())
-            .filter_map(|path| File::open(path).ok())
-            .filter_map(|mut file| {
-                let mut contents = String::new();
-                file.read_to_string(&mut contents).map(|_| contents).ok()
-            })
-            .flat_map(|contents| {
-                contents
-                    .lines()
-                    .filter_map(|line| regex.captures(line))
-                    .map(|captures| {
-                        let severity = match captures.get(1).unwrap().as_str() {
-                            _ => DiagnosticSeverity::Error,
-                        };
-                        let error_code = captures.get(2).unwrap().as_str().parse::<i32>().unwrap();
-                        let path = captures.get(3).unwrap().as_str().to_owned();
-                        let line = captures.get(4).unwrap().as_str().parse::<u32>().unwrap();
-                        let character_start =
-                            captures.get(5).unwrap().as_str().parse::<u32>().unwrap();
-                        let character_end =
-                            captures.get(6).unwrap().as_str().parse::<u32>().unwrap();
-                        let message = captures.get(7).unwrap().as_str().to_owned();
+                let severity = get_capture_as_str(1, &captures)?.to_owned();
+                let error_code = get_capture_as_str(2, &captures)?.parse::<i32>().map_err(|_| ())?;
+                let path = get_capture_as_str(3, &captures)?.to_owned();
+                let line = get_capture_as_str(4, &captures)?.parse::<u32>().map_err(|_| ())?;
+                let character_start = get_capture_as_str(5, &captures)?.parse::<u32>().map_err(|_| ())?;
+                let character_end = get_capture_as_str(6, &captures)?.parse::<u32>().map_err(|_| ())?;
+                let message = get_capture_as_str(7, &captures)?.to_owned();
 
-                        let uri = Url::from_file_path(path).unwrap();
+                Ok((severity, error_code, path, line, character_start, character_end, message))
+            }
+            fn construct_uri_and_diagnostic(input: In1) -> std::result::Result<(Url, Diagnostic), ()> {
+                let (severity, error_code, path, line, character_start, character_end, message) = input;
+                let line = line - 1;
+                let severity = match severity {
+                    _ => DiagnosticSeverity::Error,
+                };
 
-                        let diagnostic = Diagnostic {
-                            severity: Some(severity),
-                            code: Some(NumberOrString::Number(error_code)),
-                            range: Range {
-                                start: Position::new(line, character_start),
-                                end: Position::new(line, character_end),
-                            },
-                            message,
-                            source: Some("ccsc-compiler".to_string()),
-                            ..Default::default()
-                        };
+                let diagnostic = Diagnostic {
+                    severity: Some(severity),
+                    code: Some(NumberOrString::Number(error_code)),
+                    range: Range {
+                        start: Position::new(line, character_start),
+                        end: Position::new(line, character_end),
+                    },
+                    message,
+                    source: Some("ccsc-compiler".to_string()),
+                    ..Default::default()
+                };
 
-                        (uri, diagnostic)
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .fold(HashMap::new(), |mut map, (uri, diagnostic)| {
-                map.entry(uri).or_insert_with(Vec::new).push(diagnostic);
-                map
-            });
+                Url::from_file_path(path).map(|uri| (uri, diagnostic))
+            }
+
+            paths.into_iter()
+                .filter_map(|path| File::open(path).ok())
+                .filter_map(|mut file| {
+                    let mut contents = String::new();
+                    file.read_to_string(&mut contents).map(|_| contents).ok()
+                })
+                .flat_map(|contents| {
+                    contents
+                        .lines()
+                        .filter_map(|line| COMPILER_ERROR_MATCHER.captures(line))
+                        .filter_map(|captures| get_captures_from_match(captures).ok())
+                        .filter_map(|input| construct_uri_and_diagnostic(input).ok())
+                        .collect::<Vec<_>>()
+                })
+                .fold(HashMap::new(), |mut map, (uri, diagnostic)| {
+                    map.entry(uri).or_insert_with(Vec::new).push(diagnostic);
+                    map
+                })
+        }
+
+        let diagnostics = get_diagnostics_from_err_paths(deconstruct_to_paths(params));
 
         for (uri, diagnostics) in diagnostics {
             self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostics)))
                 .await;
         }
-    }
-
-    async fn shutdown(&self) -> Result<()> {
-        self.get_data().clear();
-        Ok(())
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -228,10 +250,10 @@ impl LanguageServer for server::Backend {
         fn deconstruct_input(params: HoverParams) -> (u32, u32, Url) {
             let HoverParams {
                 text_document_position_params:
-                    TextDocumentPositionParams {
-                        position: Position { line, character },
-                        text_document: TextDocumentIdentifier { uri },
-                    },
+                TextDocumentPositionParams {
+                    position: Position { line, character },
+                    text_document: TextDocumentIdentifier { uri },
+                },
                 ..
             } = params;
             (line, character, uri)

@@ -1,8 +1,8 @@
-CCS PCM C Compiler, Version 5.105Pd, 1               22-Dez-21 13:54
+CCS PCM C Compiler, Version 5.105Pd, 1               30-Dez-21 17:50
 Compiler operating in Evaluation Mode
 To obtain a fully enabled compiler visit www.ccsinfo.com/products
 
-               Filename:   C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\main.lst
+               Filename:   C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main.lst
 
                ROM used:   81 words (2%)
                            Largest free fragment is 2048
@@ -67,7 +67,7 @@ To obtain a fully enabled compiler visit www.ccsinfo.com/products
 0005:  ADDWF  22,W
 0006:  MOVWF  78
 0007:  BCF    0A.3
-0008:  GOTO   03F (RETURN)
+0008:  GOTO   039 (RETURN)
 .................... }
 .................... 
 .................... 
@@ -94,22 +94,22 @@ To obtain a fully enabled compiler visit www.ccsinfo.com/products
 0031:  CLRF   08
 0032:  CLRF   09
 0033:  BCF    03.7
-.................... 	output_low(PIN_C0);
-0034:  BCF    03.6
-0035:  BCF    20.0
-0036:  MOVF   20,W
-0037:  BSF    03.5
-0038:  MOVWF  07
-0039:  BCF    03.5
-003A:  BCF    07.0
-.................... 	
+0034:  MOVLW  04
+0035:  BCF    03.6
+0036:  MOVWF  22
+0037:  MOVWF  23
+0038:  GOTO   004
+0039:  MOVF   78,W
+003A:  MOVWF  21
 .................... 	int c = add(4, 4);
-003B:  MOVLW  04
-003C:  MOVWF  22
-003D:  MOVWF  23
-003E:  GOTO   004
-003F:  MOVF   78,W
-0040:  MOVWF  21
+.................... 	output_low(PIN_C0);
+003B:  BCF    20.0
+003C:  MOVF   20,W
+003D:  BSF    03.5
+003E:  MOVWF  07
+003F:  BCF    03.5
+0040:  BCF    07.0
+.................... 
 .................... 	for (;;) {
 .................... 		output_toggle(PIN_C0);
 0041:  BCF    20.0

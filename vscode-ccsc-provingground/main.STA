@@ -3,7 +3,7 @@ ROM used:   81/4096 (2%)
             81/4096 (2%) including unused fragments
 
             0.1 Average locations per line
-            11.6 Average locations per statement
+            13.5 Average locations per statement
 
 RAM used:   8/256 (3%) at main() level
             9/256 (4%) worst case
@@ -13,11 +13,11 @@ Stack size: 8
 
 Lines Stmts  %   Files
 ----- ----- ---  -----
-   17     6  86  main.c
-  793     0   0  ..\..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h
-    5     1  14  sth\add.h
+   17     5  83  main.c
+  793     0   0  ..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h
+    5     1  17  sth\add.h
 ----- -----
-  815     7 Total
+  815     6 Total
 
 Page ROM  %  RAM    Vol Diff  Functions:
 ---- --- --- ---    --- ----  ----------
@@ -28,7 +28,7 @@ Page ROM  %  RAM    Vol Diff  Functions:
 
 Program metrics:
     Functions               2
-    Statements              7
+    Statements              6
     Comments                135
     Volume (V)              202
     Difficulty (D)          4.9
@@ -36,7 +36,7 @@ Program metrics:
     Time to implement (T)   1 minutes
     Est Delivered Bugs (B)  0
     Cyclomatic Complexity   1
-    Maintainability (MI)    135
+    Maintainability (MI)    137
 
  Segment     Used  Free
 -----------  ----  ----

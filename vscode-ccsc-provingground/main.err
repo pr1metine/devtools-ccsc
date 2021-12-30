@@ -1,5 +1,5 @@
-Compiling C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\main on 22-Dez-21 at 13:54
->>> Warning 202 "C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\main.c" Line 11(5,6): Variable never used:   c
+Compiling C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main on 30-Dez-21 at 17:50
+>>> Warning 202 "C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main.c" Line 9(5,6): Variable never used:   c
       Memory usage:   ROM=2%      RAM=3% - 4%
       0 Errors,  1 Warnings.
 Build Successful.

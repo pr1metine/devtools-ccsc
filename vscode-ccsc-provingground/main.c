@@ -6,6 +6,7 @@
 #include "sth/add.h"
 
 void main() {
+	int c = add(4, 4);
 	output_low(PIN_C0);
     sdflkjasdflkjweroi@∆åº‚∂ø⁄∑€å‚∂ƒ@∆º
     @å‚∂∆ºƒø⁄∑€ø⁄å~‚∂ƒ@∆º

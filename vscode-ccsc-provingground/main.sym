@@ -10,8 +10,8 @@
 021     MAIN.c
 022     add.a
 022     MAIN.@SCRATCH1
-023     @delay_ms1.P1
 023     add.b
+023     @delay_ms1.P1
 077     @SCRATCH
 078     @SCRATCH
 078     _RETURN_
@@ -30,19 +30,19 @@ ROM Allocation:
 000033  @cinit2
 
 Project Directory:
-    C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\
+    C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\
 
 Project Files:
-    main.c                                                  [22-Dez-21 13:53  CRC=D872A938]
-    ..\..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h [12-Jul-21 11:35  CRC=31E9B441]
-    sth\add.h                                               [22-Dez-21 13:54  CRC=00000000]
+    main.c                                                  [30-Dez-21 17:49  CRC=D872A938]
+    ..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h [12-Jul-21 11:35  CRC=31E9B441]
+    sth\add.h                                               [27-Dez-21 11:42  CRC=00000000]
 
 Source signature=0A5C5D79
 Program memory checksum=0000
-Hex file CRC=DBCD
+Hex file CRC=34E4
 
 Units:
-    C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\main (main)
+    C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main (main)
 
 Compiler Settings:
     Processor:      PIC16F883
