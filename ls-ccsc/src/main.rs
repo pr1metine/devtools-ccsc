@@ -4,18 +4,19 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use ini::Ini;
+use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tree_sitter::Point;
 
-use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument, TextDocumentType};
+use server::text_document_type::TextDocumentType;
+
+use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument};
 
 mod server;
 mod utils;
-
-use lazy_static::lazy_static;
 
 lazy_static! {
     // 0th capture group: Entire match
@@ -107,6 +108,12 @@ impl LanguageServer for server::Backend {
         }
         fn get_diagnostics_from_err_paths<P: AsRef<Path>>(paths: Vec<P>) -> HashMap<Url, Vec<Diagnostic>> {
             type In1 = (String, i32, String, u32, u32, u32, String);
+            type In2 = (Url, Diagnostic);
+            type UriDiagnosticMap = HashMap<Url, Vec<Diagnostic>>;
+            fn read_to_string(mut file: File) -> Option<String> {
+                let mut contents = String::new();
+                file.read_to_string(&mut contents).ok().map(|_| contents)
+            }
             fn get_captures_from_match(captures: Captures) -> std::result::Result<In1, ()> {
                 fn get_capture_as_str<'a>(idx: usize, captures: &'a Captures) -> std::result::Result<&'a str, ()> {
                     Ok(captures.get(idx).ok_or(())?.as_str())
@@ -122,7 +129,7 @@ impl LanguageServer for server::Backend {
 
                 Ok((severity, error_code, path, line, character_start, character_end, message))
             }
-            fn construct_uri_and_diagnostic(input: In1) -> std::result::Result<(Url, Diagnostic), ()> {
+            fn construct_uri_and_diagnostic(input: In1) -> std::result::Result<In2, ()> {
                 let (severity, error_code, path, line, character_start, character_end, message) = input;
                 let line = line - 1;
                 let severity = match severity {
@@ -143,13 +150,15 @@ impl LanguageServer for server::Backend {
 
                 Url::from_file_path(path).map(|uri| (uri, diagnostic))
             }
+            fn add_diagnostic_to_uri(mut map: UriDiagnosticMap, input: In2) -> UriDiagnosticMap {
+                let (uri, diagnostic) = input;
+                map.entry(uri).or_insert(vec![]).push(diagnostic);
+                map
+            }
 
             paths.into_iter()
                 .filter_map(|path| File::open(path).ok())
-                .filter_map(|mut file| {
-                    let mut contents = String::new();
-                    file.read_to_string(&mut contents).map(|_| contents).ok()
-                })
+                .filter_map(|file| read_to_string(file))
                 .flat_map(|contents| {
                     contents
                         .lines()
@@ -158,10 +167,7 @@ impl LanguageServer for server::Backend {
                         .filter_map(|input| construct_uri_and_diagnostic(input).ok())
                         .collect::<Vec<_>>()
                 })
-                .fold(HashMap::new(), |mut map, (uri, diagnostic)| {
-                    map.entry(uri).or_insert_with(Vec::new).push(diagnostic);
-                    map
-                })
+                .fold(HashMap::new(), add_diagnostic_to_uri)
         }
 
         let diagnostics = get_diagnostics_from_err_paths(deconstruct_to_paths(params));

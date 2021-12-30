@@ -1,90 +1,16 @@
-use std::collections::{HashMap, HashSet};
-use std::io::Read;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use lazy_static::lazy_static;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Diagnostic, Position, Range, TextDocumentContentChangeEvent};
-use tree_sitter::{InputEdit, Node, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
+use tree_sitter::{
+    InputEdit, Node, Parser, Point, Query, QueryCursor, QueryMatch, Tree, TreeCursor,
+};
 
-use crate::server::{MPLABFile, TextDocumentSource};
-use crate::{utils, MPLABProjectConfig};
-
-#[derive(Clone)]
-pub enum TextDocumentType {
-    Ignored,
-    Source(TextDocument),
-    #[allow(dead_code)]
-    MCP(TextDocument), // TODO: MCP is not implemented yet
-}
-
-impl TextDocumentType {
-    pub fn from_mcp(
-        mcp: &MPLABProjectConfig,
-        root_path: &PathBuf,
-        parser: Arc<Mutex<Parser>>,
-    ) -> Result<HashMap<PathBuf, TextDocumentType>> {
-        fn read_string(path: &PathBuf) -> Result<String> {
-            let mut file = std::fs::File::open(path).map_err(|e| {
-                utils::create_server_error(
-                    6,
-                    format!(
-                        "Could not open file '{}' ('{}')",
-                        path.display(),
-                        e.to_string()
-                    ),
-                )
-            })?;
-            let mut contents = String::new();
-            file.read_to_string(&mut contents).map_err(|e| {
-                utils::create_server_error(
-                    6,
-                    format!(
-                        "Could not read file '{}' ('{}')",
-                        path.display(),
-                        e.to_string()
-                    ),
-                )
-            })?;
-            Ok(contents)
-        }
-        fn deconstruct_path(f: &MPLABFile, root_path: &PathBuf) -> (PathBuf, bool) {
-            let MPLABFile {
-                path,
-                is_generated,
-                is_other,
-                ..
-            } = f;
-            (root_path.join(path), *is_generated || *is_other)
-        }
-        fn insert_raw_string(tup: (PathBuf, bool)) -> Option<(PathBuf, String, bool)> {
-            read_string(&tup.0).map(|s| (tup.0, s, tup.1)).ok()
-        }
-        fn create_text_document_type(
-            tup: (PathBuf, String, bool),
-            parser: Arc<Mutex<Parser>>,
-        ) -> (PathBuf, TextDocumentType) {
-            let (p, raw, to_be_ignored) = tup;
-            let td = if !to_be_ignored && utils::is_source_file(&p) {
-                TextDocumentType::Source(TextDocument::new(p.clone(), raw, parser.clone()))
-            } else {
-                TextDocumentType::Ignored
-            };
-
-            (p, td)
-        }
-
-        let out = mcp
-            .files
-            .values()
-            .map(|f| deconstruct_path(f, root_path))
-            .filter_map(|tup| insert_raw_string(tup))
-            .map(|tup| create_text_document_type(tup, parser.clone()))
-            .collect::<HashMap<_, _>>();
-
-        Ok(out)
-    }
-}
+use crate::server::TextDocumentSource;
+use crate::utils;
 
 #[derive(Clone)]
 pub struct TextDocument {
@@ -95,35 +21,43 @@ pub struct TextDocument {
     pub included_files: HashSet<PathBuf>, // TODO: Detect cyclic includes
 }
 
+lazy_static! {
+    static ref PREPROC_INCLUDE_QUERY: Query = Query::new(
+        tree_sitter_ccsc::language(),
+        "(preproc_include path: (_) @path) @include",
+    )
+    .unwrap();
+    static ref PIQ_INCLUDE_IDX: u32 = PREPROC_INCLUDE_QUERY
+        .capture_index_for_name("include")
+        .unwrap();
+    static ref PIQ_PATH_IDX: u32 = PREPROC_INCLUDE_QUERY
+        .capture_index_for_name("path")
+        .unwrap();
+}
+
 type TDCCE = TextDocumentContentChangeEvent;
 
 impl TextDocument {
     pub fn new(absolute_path: PathBuf, raw: String, parser: Arc<Mutex<Parser>>) -> TextDocument {
-        fn get_included_files(
-            root_node: Node,
-            source: &[u8],
-            root_path: &PathBuf,
-        ) -> HashSet<PathBuf> {
-            // TODO: Cache these queries
-            let query = Query::new(
-                tree_sitter_ccsc::language(),
-                "(preproc_include path: (_) @path) @include",
-            )
-            .unwrap();
-            let include_idx = query.capture_index_for_name("include").unwrap();
-            let path_idx = query.capture_index_for_name("path").unwrap();
+        fn get_included_files(node: Node, source: &[u8], path: &PathBuf) -> HashSet<PathBuf> {
+            fn include_has_no_errors(m: &QueryMatch) -> bool {
+                !m.nodes_for_capture_index(*PIQ_INCLUDE_IDX)
+                    .any(|c| c.has_error())
+            }
+            fn get_node_with_path<'cursor: 'tree, 'tree>(
+                m: QueryMatch<'cursor, 'tree>,
+            ) -> Option<Node<'cursor>> {
+                m.nodes_for_capture_index(*PIQ_PATH_IDX).next()
+            }
             let mut query_cursor = QueryCursor::new();
 
             let out = query_cursor
-                .matches(&query, root_node, source)
-                .filter(|m| {
-                    !m.nodes_for_capture_index(include_idx)
-                        .any(|c| c.has_error())
-                })
-                .filter_map(|m| m.nodes_for_capture_index(path_idx).next())
+                .matches(&PREPROC_INCLUDE_QUERY, node, source)
+                .filter(include_has_no_errors)
+                .filter_map(get_node_with_path)
                 .filter_map(|c| c.utf8_text(source).ok())
                 .filter(|path_str| path_str.len() > 2)
-                .map(|path_str| root_path.join(&path_str[1..path_str.len() - 1]))
+                .map(|path_str| path.join(&path_str[1..path_str.len() - 1]))
                 .collect::<HashSet<_>>();
 
             out

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tower_lsp::jsonrpc::Result;
 
 use crate::server::mplab_project_config::MPLABProjectConfig;
-use crate::server::TextDocumentType;
+use crate::server::text_document_type::TextDocumentType;
 use crate::utils;
 
 #[derive(Default)]
