@@ -1,9 +1,12 @@
+use std::fs::File;
+use std::io::Read;
 use std::path::PathBuf;
 
 use ini::Ini;
+use regex::Regex;
+use tower_lsp::{LanguageServer, LspService, Server};
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
-use tower_lsp::{LanguageServer, LspService, Server};
 use tree_sitter::Point;
 
 use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument, TextDocumentType};
@@ -51,6 +54,83 @@ impl LanguageServer for server::Backend {
                 version: Some("0.2.0-alpha".to_string()),
             }),
         })
+    }
+
+    async fn initialized(&self, _: InitializedParams) {
+        let watch = DidChangeWatchedFilesRegistrationOptions {
+            watchers: vec![FileSystemWatcher {
+                glob_pattern: "**/*.err".to_string(),
+                kind: None,
+            }],
+        };
+
+        self.get_client()
+            .register_capability(vec![Registration {
+                id: "ccsc/watcher".to_string(),
+                method: "workspace/didChangeWatchedFiles".to_string(),
+                register_options: serde_json::to_value(watch).ok(),
+            }])
+            .await
+            .unwrap();
+    }
+
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        let DidChangeWatchedFilesParams { changes } = params;
+
+        let regex = Regex::new(
+            r#"^>>>\s+([a-zA-Z]+)\s+(\d+)\s+"([^"\n]*)"\s+Line\s+(\d+)\((\d+),(\d+)\): (.*)$"#,
+        )
+            .unwrap();
+
+        let errors = changes
+            .into_iter()
+            .filter_map(|change| change.uri.to_file_path().ok())
+            .filter_map(|path| File::open(path).ok())
+            .filter_map(|mut file| {
+                let mut contents = String::new();
+                file.read_to_string(&mut contents).map(|_| contents).ok()
+            })
+            .flat_map(|contents| {
+                contents
+                    .lines()
+                    .filter_map(|line| regex.captures(line))
+                    .map(|captures| {
+                        let error_type = captures.get(1).unwrap().as_str().to_owned();
+                        let error_code = captures.get(2).unwrap().as_str().to_owned();
+                        let path = captures.get(3).unwrap().as_str().to_owned();
+                        let line = captures.get(4).unwrap().as_str().to_owned();
+                        let character_start = captures.get(5).unwrap().as_str().to_owned();
+                        let character_end = captures.get(6).unwrap().as_str().to_owned();
+                        let message = captures.get(7).unwrap().as_str().to_owned();
+
+                        (
+                            error_type,
+                            error_code,
+                            path,
+                            line,
+                            character_start,
+                            character_end,
+                            message,
+                        )
+                    })
+                    .map(|captures| {
+                        format!(
+                            "{}:{}:{}:{}:{}:{}:{}",
+                            captures.0,
+                            captures.1,
+                            captures.2,
+                            captures.3,
+                            captures.4,
+                            captures.5,
+                            captures.6
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        self.handle_response(Ok(CCSCResponse::from_logs(errors)))
+            .await;
     }
 
     async fn shutdown(&self) -> Result<()> {
