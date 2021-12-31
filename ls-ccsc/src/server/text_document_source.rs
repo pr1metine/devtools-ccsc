@@ -118,7 +118,7 @@ mod tests {
     fn test_single_line() {
         let expected = TextDocumentSource {
             raw: "Hello, world!".to_string(),
-            positions: vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
+            positions: vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]],
         };
         let actual = TextDocumentSource::from("Hello, world!".to_string());
         assert_eq!(expected, actual);
@@ -130,7 +130,7 @@ mod tests {
     fn test_new_line_at_end_of_line() {
         let expected = TextDocumentSource {
             raw: "Hello, world!\n".to_string(),
-            positions: vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], vec![]],
+            positions: vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], vec![14]],
         };
         let actual = TextDocumentSource::from("Hello, world!\n".to_string());
         assert_eq!(expected, actual);
@@ -144,7 +144,7 @@ mod tests {
                 vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
                 vec![14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
                 vec![27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38],
-                vec![],
+                vec![39],
             ],
         };
         let actual =
@@ -163,7 +163,7 @@ mod tests {
                     23, 24,
                 ],
                 vec![25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
-                vec![40],
+                vec![40, 41],
             ],
         };
         let actual_content =
@@ -193,7 +193,7 @@ mod tests {
                 ],
                 vec![25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
                 vec![40, 41, 42, 43, 44],
-                vec![45],
+                vec![45, 46],
             ],
         };
 

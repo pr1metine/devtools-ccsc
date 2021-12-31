@@ -19,7 +19,7 @@ pub enum TextDocumentType {
 }
 
 impl TextDocumentType {
-    pub fn from_mcp(
+    pub fn index_from_mcp(
         mcp: &MPLABProjectConfig,
         root_path: &PathBuf,
         parser: Arc<Mutex<Parser>>,

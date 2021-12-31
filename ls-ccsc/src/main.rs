@@ -41,9 +41,10 @@ impl LanguageServer for server::Backend {
             Ok(utils::get_path(&uri)?)
         }
         fn get_mcp_ini(path: &PathBuf) -> Result<Ini> {
-            let ini = Ini::load_from_file_noescape(utils::find_mcp_file(path)?).map_err(|_| {
-                utils::create_server_error(1, "Failed to load MPLAB Project Config".to_owned())
-            })?;
+            let ini =
+                Ini::load_from_file_noescape(utils::find_path_to_mcp(path)?).map_err(|_| {
+                    utils::create_server_error(1, "Failed to load MPLAB Project Config".to_owned())
+                })?;
 
             Ok(ini)
         }
@@ -52,7 +53,7 @@ impl LanguageServer for server::Backend {
         let ini = get_mcp_ini(&root_path)?;
         let config = MPLABProjectConfig::from_ini_to_lsp_result(&ini)?;
 
-        let docs = TextDocumentType::from_mcp(&config, &root_path, self.get_parser())?;
+        let docs = TextDocumentType::index_from_mcp(&config, &root_path, self.get_parser())?;
 
         let mut data = self.get_data();
         data.set_root_path(root_path);
@@ -98,6 +99,7 @@ impl LanguageServer for server::Backend {
     }
 
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        type UriDiagnosticMap = HashMap<Url, Vec<Diagnostic>>;
         fn deconstruct_to_paths(params: DidChangeWatchedFilesParams) -> Vec<PathBuf> {
             let DidChangeWatchedFilesParams { changes } = params;
 
@@ -106,33 +108,53 @@ impl LanguageServer for server::Backend {
                 .filter_map(|change| change.uri.to_file_path().ok())
                 .collect()
         }
-        fn get_diagnostics_from_err_paths<P: AsRef<Path>>(paths: Vec<P>) -> HashMap<Url, Vec<Diagnostic>> {
+        fn get_diagnostics_from_err_paths<P: AsRef<Path>>(paths: Vec<P>) -> UriDiagnosticMap {
             type In1 = (String, i32, String, u32, u32, u32, String);
             type In2 = (Url, Diagnostic);
-            type UriDiagnosticMap = HashMap<Url, Vec<Diagnostic>>;
             fn read_to_string(mut file: File) -> Option<String> {
                 let mut contents = String::new();
                 file.read_to_string(&mut contents).ok().map(|_| contents)
             }
             fn get_captures_from_match(captures: Captures) -> std::result::Result<In1, ()> {
-                fn get_capture_as_str<'a>(idx: usize, captures: &'a Captures) -> std::result::Result<&'a str, ()> {
+                fn get_capture_as_str<'a>(
+                    idx: usize,
+                    captures: &'a Captures,
+                ) -> std::result::Result<&'a str, ()> {
                     Ok(captures.get(idx).ok_or(())?.as_str())
                 }
 
                 let severity = get_capture_as_str(1, &captures)?.to_owned();
-                let error_code = get_capture_as_str(2, &captures)?.parse::<i32>().map_err(|_| ())?;
+                let error_code = get_capture_as_str(2, &captures)?
+                    .parse::<i32>()
+                    .map_err(|_| ())?;
                 let path = get_capture_as_str(3, &captures)?.to_owned();
-                let line = get_capture_as_str(4, &captures)?.parse::<u32>().map_err(|_| ())?;
-                let character_start = get_capture_as_str(5, &captures)?.parse::<u32>().map_err(|_| ())?;
-                let character_end = get_capture_as_str(6, &captures)?.parse::<u32>().map_err(|_| ())?;
+                let line = get_capture_as_str(4, &captures)?
+                    .parse::<u32>()
+                    .map_err(|_| ())?;
+                let character_start = get_capture_as_str(5, &captures)?
+                    .parse::<u32>()
+                    .map_err(|_| ())?;
+                let character_end = get_capture_as_str(6, &captures)?
+                    .parse::<u32>()
+                    .map_err(|_| ())?;
                 let message = get_capture_as_str(7, &captures)?.to_owned();
 
-                Ok((severity, error_code, path, line, character_start, character_end, message))
+                Ok((
+                    severity,
+                    error_code,
+                    path,
+                    line,
+                    character_start,
+                    character_end,
+                    message,
+                ))
             }
             fn construct_uri_and_diagnostic(input: In1) -> std::result::Result<In2, ()> {
-                let (severity, error_code, path, line, character_start, character_end, message) = input;
+                let (severity, error_code, path, line, character_start, character_end, message) =
+                    input;
                 let line = line - 1;
-                let severity = match severity {
+                let severity = match severity.as_str() {
+                    "Warning" => DiagnosticSeverity::Warning,
                     _ => DiagnosticSeverity::Error,
                 };
 
@@ -156,7 +178,8 @@ impl LanguageServer for server::Backend {
                 map
             }
 
-            paths.into_iter()
+            paths
+                .into_iter()
                 .filter_map(|path| File::open(path).ok())
                 .filter_map(|file| read_to_string(file))
                 .flat_map(|contents| {

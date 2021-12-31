@@ -1,12 +1,12 @@
 use std::ops::Range;
 use std::path::PathBuf;
 
-use tower_lsp::jsonrpc::Result;
 use tower_lsp::jsonrpc::{Error, ErrorCode};
+use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position};
 use tree_sitter::{Node, Point};
 
-use crate::{utils, Url};
+use crate::{Url, utils};
 
 pub fn create_server_error(code: i64, message: String) -> Error {
     let code = ErrorCode::ServerError(code);
@@ -17,7 +17,7 @@ pub fn create_server_error(code: i64, message: String) -> Error {
     }
 }
 
-pub fn find_mcp_file(p: &PathBuf) -> Result<PathBuf> {
+pub fn find_path_to_mcp(p: &PathBuf) -> Result<PathBuf> {
     Ok(p.as_path()
         .read_dir()
         .map_err(|e| utils::create_server_error(4, e.to_string()))?
