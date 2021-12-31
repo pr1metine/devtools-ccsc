@@ -14,8 +14,8 @@ use crate::server::MPLABFile;
 pub enum TextDocumentType {
     Ignored,
     Source(TextDocument),
-    #[allow(dead_code)]
-    MCP(TextDocument), // TODO: MCP is not implemented yet
+    //#[allow(dead_code)]
+    //MCP(TextDocument), // TODO: MCP is not implemented yet
 }
 
 impl TextDocumentType {

@@ -18,7 +18,8 @@ pub fn create_server_error(code: i64, message: String) -> Error {
 }
 
 pub fn find_path_to_mcp(p: &PathBuf) -> Result<PathBuf> {
-    Ok(p.as_path()
+    let out = p
+        .as_path()
         .read_dir()
         .map_err(|e| utils::create_server_error(4, e.to_string()))?
         .filter_map(|f| f.ok())
@@ -26,11 +27,37 @@ pub fn find_path_to_mcp(p: &PathBuf) -> Result<PathBuf> {
         .filter(|f| f.is_file())
         .filter(|f| f.extension().is_some())
         .filter(|f| f.extension().unwrap() == "mcp")
-        .nth(0)
-        .ok_or(utils::create_server_error(
+        .collect::<Vec<_>>();
+
+    if out.len() > 1 {
+        return Err(utils::create_server_error(
             4,
-            format!("No .mcp file found inside '{}'", p.display()),
-        ))?)
+            format!(
+                "Multiple .mcp file found inside '{}'. Choose one and delete the rest",
+                p.display()
+            ),
+        ));
+    }
+
+    out.into_iter().next().ok_or(utils::create_server_error(
+        4,
+        format!("No .mcp file found inside '{}'", p.display()),
+    ))
+}
+
+pub fn find_paths_to_errs(p: &PathBuf) -> Result<Vec<PathBuf>> {
+    let out = p
+        .as_path()
+        .read_dir()
+        .map_err(|e| utils::create_server_error(4, e.to_string()))?
+        .filter_map(|f| f.ok())
+        .map(|f| f.path())
+        .filter(|f| f.is_file())
+        .filter(|f| f.extension().is_some())
+        .filter(|f| f.extension().unwrap() == "err")
+        .collect::<Vec<_>>();
+
+    Ok(out)
 }
 
 pub fn get_path(uri: &Url) -> Result<PathBuf> {

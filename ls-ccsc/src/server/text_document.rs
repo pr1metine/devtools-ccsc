@@ -18,7 +18,9 @@ pub struct TextDocument {
     pub source: TextDocumentSource,
     pub syntax_tree: Option<Tree>,
     pub parser: Arc<Mutex<Parser>>,
-    pub included_files: HashSet<PathBuf>, // TODO: Detect cyclic includes
+    pub included_files: HashSet<PathBuf>,
+    // TODO: Detect cyclic includes
+    pub compiler_diagnostics: Vec<Diagnostic>,
 }
 
 lazy_static! {
@@ -75,12 +77,15 @@ impl TextDocument {
             &absolute_path,
         );
 
+        let compiler_diagnostics = vec![];
+
         TextDocument {
             absolute_path,
             source,
             syntax_tree,
             parser,
             included_files,
+            compiler_diagnostics,
         }
     }
 
@@ -202,8 +207,8 @@ impl TextDocument {
         Ok(log)
     }
 
-    pub fn get_syntax_errors(&self) -> Result<Vec<Diagnostic>> {
-        fn traverse(mut cursor: TreeCursor, diagnostics: &mut Vec<Diagnostic>, raw: &[u8]) {
+    pub fn get_diagnostics(&self) -> Result<Vec<Diagnostic>> {
+        fn populate_syntax_errors(mut cursor: TreeCursor, diagnostics: &mut Vec<Diagnostic>, raw: &[u8]) {
             let node = cursor.node();
 
             if node.is_error() {
@@ -229,17 +234,23 @@ impl TextDocument {
 
             cursor.goto_first_child();
             for _ in 0..node.child_count() {
-                traverse(cursor.node().walk(), diagnostics, raw);
+                populate_syntax_errors(cursor.node().walk(), diagnostics, raw);
                 cursor.goto_next_sibling();
             }
         }
 
         let mut diagnostics = Vec::new();
-        traverse(
+        populate_syntax_errors(
             self.get_syntax_tree()?.walk(),
             &mut diagnostics,
             self.source.get_raw().as_bytes(),
         );
+        diagnostics.extend(self.compiler_diagnostics.clone());
+
         Ok(diagnostics)
+    }
+
+    pub fn get_compiler_diagnostics(&mut self) -> &mut Vec<Diagnostic> {
+        &mut self.compiler_diagnostics
     }
 }

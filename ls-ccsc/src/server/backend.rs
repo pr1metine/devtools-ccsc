@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use tower_lsp::Client;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::MessageType;
-use tower_lsp::Client;
 use tree_sitter::Parser;
 
 use crate::server::BackendInner;
@@ -65,7 +65,7 @@ impl Backend {
         &self.client
     }
 
-    pub fn get_data(&self) -> MutexGuard<BackendInner> {
+    pub fn get_inner(&self) -> MutexGuard<BackendInner> {
         self.data.lock().unwrap()
     }
 
