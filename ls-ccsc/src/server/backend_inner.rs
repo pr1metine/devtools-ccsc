@@ -10,7 +10,7 @@ use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Posit
 
 use crate::server::mplab_project_config::MPLABProjectConfig;
 use crate::server::text_document_type::TextDocumentType;
-use crate::utils;
+use crate::{Url, utils};
 
 #[derive(Default)]
 pub struct BackendInner {
@@ -29,7 +29,7 @@ lazy_static! {
     // 6th capture group: Character end
     // 7th capture group: Error message
     static ref COMPILER_ERROR_MATCHER: Regex = Regex::new(
-        r#"^>>>\s+([a-zA-Z]+)\s+(\d+)\s+"([^"\n]*)"\s+Line\s+(\d+)\((\d+),(\d+)\): (.*)$"#,
+        r#"^(?:>>>|\*\*\*|---)\s+([a-zA-Z]+)\s+(\d+)\s+"([^"\n]*)"\s+Line\s+(\d+)\((\d+),(\d+)\): (.*)$"#,
     ).unwrap();
 }
 
@@ -78,7 +78,7 @@ impl BackendInner {
         self.mcp = None;
     }
 
-    pub fn insert_compiler_diagnostics(&mut self, paths: Vec<PathBuf>) {
+    pub fn insert_compiler_diagnostics(&mut self, p: Vec<PathBuf>) -> HashMap<Url, Vec<Diagnostic>> {
         type UriDiagnosticMap = HashMap<String, Vec<Diagnostic>>;
         fn get_diagnostics_from_err_paths<P: AsRef<Path>>(paths: Vec<P>) -> UriDiagnosticMap {
             type In1 = (String, i32, String, u32, u32, u32, String);
@@ -126,8 +126,9 @@ impl BackendInner {
                     input;
                 let line = line - 1;
                 let severity = match severity.as_str() {
+                    "Info" => DiagnosticSeverity::Information,
                     "Warning" => DiagnosticSeverity::Warning,
-                    _ => DiagnosticSeverity::Error,
+                    "Error" | _ => DiagnosticSeverity::Error,
                 };
 
                 let diagnostic = Diagnostic {
@@ -170,21 +171,26 @@ impl BackendInner {
                 .fold(HashMap::new(), add_diagnostic_to_uri)
         }
 
-        let diagnostics = get_diagnostics_from_err_paths(paths);
+        let diagnostics = get_diagnostics_from_err_paths(p);
         self.docs.iter_mut().for_each(|(_, doc)| {
             match doc {
-                TextDocumentType::Ignored => {},
+                TextDocumentType::Ignored => {}
                 TextDocumentType::Source(source) => source.get_compiler_diagnostics().clear(),
                 //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().clear(),
             }
         });
 
+        let mut out = HashMap::new();
         for (path, diagnostic) in diagnostics {
-            match self.get_doc_or_ignored(PathBuf::from(path)) {
-                TextDocumentType::Ignored => {},
-                TextDocumentType::Source(source) => source.get_compiler_diagnostics().extend(diagnostic),
+            match self.get_doc_or_ignored(PathBuf::from(path.clone())) {
+                TextDocumentType::Ignored => {}
+                TextDocumentType::Source(source) => {
+                    source.get_compiler_diagnostics().extend(diagnostic.clone())
+                }
                 //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().extend(diagnostic),
             }
+            out.insert(Url::from_file_path(path).unwrap(), diagnostic);
         }
+        out
     }
 }

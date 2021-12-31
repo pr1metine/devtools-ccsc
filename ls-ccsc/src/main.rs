@@ -37,11 +37,17 @@ impl LanguageServer for server::Backend {
         let docs = TextDocumentType::index_from_mcp(&config, &root_path, self.get_parser())?;
         let err_paths = utils::find_paths_to_errs(&root_path)?;
 
-        let mut data = self.get_inner();
-        data.set_root_path(root_path);
-        data.set_mcp(config);
-        data.insert_docs(docs);
-        data.insert_compiler_diagnostics(err_paths);
+        let diagnostics = {
+            let mut data = self.get_inner();
+            data.set_root_path(root_path);
+            data.set_mcp(config);
+            data.insert_docs(docs);
+            data.insert_compiler_diagnostics(err_paths)
+        };
+
+        for (uri, diagnostic) in diagnostics {
+            self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostic))).await;
+        }
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -91,7 +97,14 @@ impl LanguageServer for server::Backend {
                 .collect()
         }
 
-        self.get_inner().insert_compiler_diagnostics(deconstruct_to_paths(params));
+        let diagnostics = {
+            let mut inner = self.get_inner();
+            inner.insert_compiler_diagnostics(deconstruct_to_paths(params))
+        };
+
+        for (uri, diagnostic) in diagnostics {
+            self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostic))).await;
+        }
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
