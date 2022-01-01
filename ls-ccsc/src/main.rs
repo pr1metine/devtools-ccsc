@@ -6,10 +6,10 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tree_sitter::Point;
 
-use server::text_document_type::TextDocumentType;
-
+use crate::docs::TextDocumentType;
 use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument};
 
+mod docs;
 mod server;
 mod utils;
 
@@ -46,7 +46,8 @@ impl LanguageServer for server::Backend {
         };
 
         for (uri, diagnostic) in diagnostics {
-            self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostic))).await;
+            self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostic)))
+                .await;
         }
 
         Ok(InitializeResult {
@@ -103,7 +104,8 @@ impl LanguageServer for server::Backend {
         };
 
         for (uri, diagnostic) in diagnostics {
-            self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostic))).await;
+            self.handle_response(Ok(CCSCResponse::from_diagnostics(uri, diagnostic)))
+                .await;
         }
     }
 

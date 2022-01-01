@@ -208,7 +208,7 @@ impl TextDocument {
     }
 
     pub fn get_diagnostics(&self) -> Result<Vec<Diagnostic>> {
-        fn populate_syntax_errors(mut cursor: TreeCursor, diagnostics: &mut Vec<Diagnostic>, raw: &[u8]) {
+        fn populate_syntax_errors(mut cursor: TreeCursor, diags: &mut Vec<Diagnostic>, raw: &[u8]) {
             let node = cursor.node();
 
             if node.is_error() {
@@ -219,14 +219,14 @@ impl TextDocument {
                     node.kind().to_owned()
                 };
 
-                diagnostics.push(utils::create_syntax_diagnostic(
+                diags.push(utils::create_syntax_diagnostic(
                     utils::get_range(&node),
                     msg,
                 ));
             };
 
             if node.is_missing() {
-                diagnostics.push(utils::create_syntax_diagnostic(
+                diags.push(utils::create_syntax_diagnostic(
                     utils::get_range(&node),
                     format!("MISSING {}", node.kind()),
                 ));
@@ -234,7 +234,7 @@ impl TextDocument {
 
             cursor.goto_first_child();
             for _ in 0..node.child_count() {
-                populate_syntax_errors(cursor.node().walk(), diagnostics, raw);
+                populate_syntax_errors(cursor.node().walk(), diags, raw);
                 cursor.goto_next_sibling();
             }
         }

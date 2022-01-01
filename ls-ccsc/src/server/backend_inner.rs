@@ -6,11 +6,11 @@ use std::path::{Path, PathBuf};
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range};
+use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url};
 
+use crate::docs::TextDocumentType;
 use crate::server::mplab_project_config::MPLABProjectConfig;
-use crate::server::text_document_type::TextDocumentType;
-use crate::{Url, utils};
+use crate::utils;
 
 #[derive(Default)]
 pub struct BackendInner {
@@ -78,7 +78,10 @@ impl BackendInner {
         self.mcp = None;
     }
 
-    pub fn insert_compiler_diagnostics(&mut self, p: Vec<PathBuf>) -> HashMap<Url, Vec<Diagnostic>> {
+    pub fn insert_compiler_diagnostics(
+        &mut self,
+        p: Vec<PathBuf>,
+    ) -> HashMap<Url, Vec<Diagnostic>> {
         type UriDiagnosticMap = HashMap<String, Vec<Diagnostic>>;
         fn get_diagnostics_from_err_paths<P: AsRef<Path>>(paths: Vec<P>) -> UriDiagnosticMap {
             type In1 = (String, i32, String, u32, u32, u32, String);
@@ -186,8 +189,7 @@ impl BackendInner {
                 TextDocumentType::Ignored => {}
                 TextDocumentType::Source(source) => {
                     source.get_compiler_diagnostics().extend(diagnostic.clone())
-                }
-                //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().extend(diagnostic),
+                } //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().extend(diagnostic),
             }
             out.insert(Url::from_file_path(path).unwrap(), diagnostic);
         }
