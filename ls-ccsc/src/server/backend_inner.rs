@@ -8,6 +8,7 @@ use regex::{Captures, Regex};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url};
 
+use crate::docs::text_document_type::TextDocumentTypeTrait;
 use crate::docs::TextDocumentType;
 use crate::mplab_project_config::MPLABProjectConfig;
 use crate::utils;
@@ -187,9 +188,9 @@ impl BackendInner {
         for (path, diagnostic) in diagnostics {
             match self.get_doc_or_ignored(PathBuf::from(path.clone())) {
                 TextDocumentType::Ignored => {}
-                TextDocumentType::Source(source) => {
-                    source.get_mut_compiler_diagnostics().extend(diagnostic.clone())
-                } //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().extend(diagnostic),
+                TextDocumentType::Source(source) => source
+                    .get_mut_compiler_diagnostics()
+                    .extend(diagnostic.clone()), //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().extend(diagnostic),
             }
             out.insert(Url::from_file_path(path).unwrap(), diagnostic);
         }
