@@ -9,7 +9,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url};
 
 use crate::docs::TextDocumentType;
-use crate::server::mplab_project_config::MPLABProjectConfig;
+use crate::mplab_project_config::MPLABProjectConfig;
 use crate::utils;
 
 #[derive(Default)]

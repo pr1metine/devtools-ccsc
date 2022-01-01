@@ -5,8 +5,8 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::MessageType;
 use tree_sitter::Parser;
 
+use crate::ccsc_response::CCSCResponse;
 use crate::server::BackendInner;
-use crate::server::CCSCResponse;
 
 pub struct Backend {
     client: Client,

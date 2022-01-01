@@ -9,7 +9,7 @@ use tree_sitter::{
     InputEdit, Node, Parser, Point, Query, QueryCursor, QueryMatch, Tree, TreeCursor,
 };
 
-use crate::server::TextDocumentSource;
+use crate::docs::TextDocumentSource;
 use crate::utils;
 
 #[derive(Clone)]

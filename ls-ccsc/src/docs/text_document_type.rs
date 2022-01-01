@@ -7,7 +7,7 @@ use tower_lsp::jsonrpc;
 use tree_sitter::Parser;
 
 use crate::{MPLABProjectConfig, TextDocument, utils};
-use crate::server::MPLABFile;
+use crate::mplab_project_config::MPLABFile;
 
 // Replace with Trait?
 #[derive(Clone)]

@@ -6,10 +6,14 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::*;
 use tree_sitter::Point;
 
-use crate::docs::TextDocumentType;
-use crate::server::{Backend, CCSCResponse, MPLABProjectConfig, TextDocument};
+use crate::ccsc_response::CCSCResponse;
+use crate::docs::{TextDocument, TextDocumentType};
+use crate::mplab_project_config::MPLABProjectConfig;
+use crate::server::Backend;
 
+mod ccsc_response;
 mod docs;
+mod mplab_project_config;
 mod server;
 mod utils;
 
