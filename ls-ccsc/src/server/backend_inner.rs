@@ -178,7 +178,7 @@ impl BackendInner {
         self.docs.iter_mut().for_each(|(_, doc)| {
             match doc {
                 TextDocumentType::Ignored => {}
-                TextDocumentType::Source(source) => source.get_compiler_diagnostics().clear(),
+                TextDocumentType::Source(source) => source.get_mut_compiler_diagnostics().clear(),
                 //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().clear(),
             }
         });
@@ -188,7 +188,7 @@ impl BackendInner {
             match self.get_doc_or_ignored(PathBuf::from(path.clone())) {
                 TextDocumentType::Ignored => {}
                 TextDocumentType::Source(source) => {
-                    source.get_compiler_diagnostics().extend(diagnostic.clone())
+                    source.get_mut_compiler_diagnostics().extend(diagnostic.clone())
                 } //TextDocumentType::MCP(source) => source.get_compiler_diagnostics().extend(diagnostic),
             }
             out.insert(Url::from_file_path(path).unwrap(), diagnostic);

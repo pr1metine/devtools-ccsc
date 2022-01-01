@@ -40,6 +40,38 @@ lazy_static! {
 type TDCCE = TextDocumentContentChangeEvent;
 
 impl TextDocument {
+    pub fn set_source(&mut self, source: TextDocumentSource) {
+        self.source = source;
+    }
+
+    pub fn get_source(&self) -> &TextDocumentSource {
+        &self.source
+    }
+
+    pub fn get_absolute_path(&self) -> &PathBuf {
+        &self.absolute_path
+    }
+
+    pub fn set_syntax_tree(&mut self, syntax_tree: Option<Tree>) {
+        self.syntax_tree = syntax_tree;
+    }
+
+    pub fn get_parser(&self) -> Arc<Mutex<Parser>> {
+        self.parser.clone()
+    }
+
+    pub fn get_included_files(&self) -> &HashSet<PathBuf> {
+        &self.included_files
+    }
+
+    pub fn get_mut_compiler_diagnostics(&mut self) -> &mut Vec<Diagnostic> {
+        &mut self.compiler_diagnostics
+    }
+
+    pub fn get_compiler_diagnostics(&self) -> &Vec<Diagnostic> {
+        &self.compiler_diagnostics
+    }
+
     pub fn new(absolute_path: PathBuf, raw: String, parser: Arc<Mutex<Parser>>) -> TextDocument {
         fn get_included_files(node: Node, source: &[u8], path: &PathBuf) -> HashSet<PathBuf> {
             fn include_has_no_errors(m: &QueryMatch) -> bool {
@@ -90,13 +122,15 @@ impl TextDocument {
     }
 
     pub fn get_mut_syntax_tree(&mut self) -> Result<&mut Tree> {
-        self.syntax_tree.as_mut().ok_or(utils::create_server_error(
+        let error = utils::create_server_error(
             3,
             format!(
                 "No syntax tree found for file '{}'",
-                self.absolute_path.display()
+                self.get_absolute_path().display()
             ),
-        ))
+        );
+
+        self.syntax_tree.as_mut().ok_or(error)
     }
 
     pub fn get_syntax_tree(&self) -> Result<&Tree> {
@@ -104,7 +138,7 @@ impl TextDocument {
             3,
             format!(
                 "No syntax tree found for file '{}'",
-                self.absolute_path.display()
+                self.get_absolute_path().display()
             ),
         ))
     }
@@ -186,19 +220,19 @@ impl TextDocument {
             (source, tree)
         }
 
-        let mut log = String::with_capacity(self.source.get_raw().len());
+        let mut log = String::with_capacity(self.get_source().get_raw().len());
         for param in params
             .into_iter()
             .map(|param| deconstruct_input(param))
             .map(|input| construct_points_and_change(input))
         {
-            let param = preprocess_for_reparsing(param, self.source.clone())?;
+            let param = preprocess_for_reparsing(param, self.get_source().clone())?;
             let (source, tree) =
-                reparse_to_tree(param, self.parser.clone(), self.get_mut_syntax_tree()?);
-            self.source = source;
-            self.syntax_tree = tree;
+                reparse_to_tree(param, self.get_parser(), self.get_mut_syntax_tree()?);
+            self.set_source(source);
+            self.set_syntax_tree(tree);
 
-            log.push_str(self.source.get_raw());
+            log.push_str(self.get_source().get_raw());
             log.push_str("\n\n");
             log.push_str(self.get_syntax_tree()?.root_node().to_sexp().as_str());
             log.push_str("\n\n---\n\n");
@@ -243,14 +277,10 @@ impl TextDocument {
         populate_syntax_errors(
             self.get_syntax_tree()?.walk(),
             &mut diagnostics,
-            self.source.get_raw().as_bytes(),
+            self.get_source().get_raw().as_bytes(),
         );
-        diagnostics.extend(self.compiler_diagnostics.clone());
+        diagnostics.extend(self.get_compiler_diagnostics().clone());
 
         Ok(diagnostics)
-    }
-
-    pub fn get_compiler_diagnostics(&mut self) -> &mut Vec<Diagnostic> {
-        &mut self.compiler_diagnostics
     }
 }

@@ -18,6 +18,8 @@ pub enum TextDocumentType {
     //MCP(TextDocument), // TODO: MCP is not implemented yet
 }
 
+pub trait TextDocumentTypeTrait {}
+
 impl TextDocumentType {
     pub fn index_from_mcp(
         mcp: &MPLABProjectConfig,

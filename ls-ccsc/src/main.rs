@@ -162,7 +162,7 @@ impl LanguageServer for server::Backend {
                 let log = doc.reparse_with_lsp(changes)?;
                 let logs = vec![format!(
                     "Document '{}' changed:\n{}\n",
-                    doc.absolute_path.display(),
+                    doc.get_absolute_path().display(),
                     log
                 )];
                 let diagnostics = doc.get_diagnostics()?;
@@ -216,7 +216,7 @@ impl LanguageServer for server::Backend {
                         contents: HoverContents::Array(vec![
                             MarkedString::String(hover_out),
                             MarkedString::String(
-                                doc.included_files
+                                doc.get_included_files()
                                     .iter()
                                     .filter_map(|s| s.to_str().map(|s2| String::from(s2)))
                                     .reduce(|acc, x| format!("{}\n{}", acc, x))
