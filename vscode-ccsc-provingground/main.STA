@@ -15,9 +15,10 @@ Lines Stmts  %   Files
 ----- ----- ---  -----
    17     5  83  main.c
   793     0   0  ..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h
-    5     1  17  sth\add.h
+    6     1  17  sth\add.c
+    2     0   0  sth\add.h
 ----- -----
-  815     6 Total
+  818     6 Total
 
 Page ROM  %  RAM    Vol Diff  Functions:
 ---- --- --- ---    --- ----  ----------

@@ -54,7 +54,13 @@
                     "description": "Traces the communication between VS Code and the language server."
                 }
             }
-        }
+        },
+        "commands": [
+            {
+                "command": "vscode-ccsc.compile",
+                "title": "CCSC: Compile MPLAB project"
+            }
+        ]
     },
     "activationEvents": [
         "onLanguage:ccsc"

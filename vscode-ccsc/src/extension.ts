@@ -1,7 +1,9 @@
 import * as path from 'path';
-import { window, ExtensionContext } from 'vscode';
+import { window, ExtensionContext, commands, workspace } from 'vscode';
+import * as cp from 'child_process';
 
 import {
+    Executable,
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
@@ -25,6 +27,7 @@ export function activate(context: ExtensionContext) {
         documentSelector: [{ scheme: 'file', language: 'ccsc' }],
     };
 
+
     client = new LanguageClient(
         'ls-ccsc',
         'CCS C Language Server',
@@ -33,7 +36,26 @@ export function activate(context: ExtensionContext) {
     );
 
     client.start();
-    window.showInformationMessage('CCS C LSP active!');
+
+    if (workspace.workspaceFolders === undefined) {
+        window.showErrorMessage("No workspace folders found! Exiting...");
+        return;
+    }
+
+    let compileCommand: Executable = {
+        command: 'ccsc.exe'.replace(/(["\s'$`\\])/g,'\\$1'),
+        args: ['+FM', `${path.join(workspace.workspaceFolders[0].uri.fsPath, "main.c")}`, '+DF', '+LN', '+T', '+A', '+M', '+Z', '+Y=9', '+EA'].map((s) => s.replace(/(["\s'$`\\])/g,'\\$1'))
+    };
+
+    let disposable = commands.registerCommand('vscode-ccsc.compile', () => {
+        window.showInformationMessage(`Compiling ${workspace.rootPath}...`);
+        cp.exec(`${compileCommand.command} ${compileCommand.args?.join(" ")}`);
+        window.showInformationMessage('Done compiling!');
+    });
+
+    context.subscriptions.push(disposable);
+
+    window.showInformationMessage('CCS C LSP Extension active!');
 }
 
 export function deactivate(): Thenable<void> | undefined {

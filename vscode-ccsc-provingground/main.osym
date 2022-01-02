@@ -10,16 +10,18 @@ C2OUT
 @TRIS_C
 
 Project Directory:
-    C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\
+    C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\
 
 Project Files:
-    main.c                                                  [22-Dez-21 13:53  CRC=D872A938]
-    ..\..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h [12-Jul-21 11:35  CRC=31E9B441]
+    main.c                                                  [02-Jan-22 13:00  CRC=D872A938]
+    ..\..\..\..\..\Program Files (x86)\PICC\devices\16F883.h [12-Jul-21 11:35  CRC=31E9B441]
+    sth\add.c                                               [02-Jan-22 12:44  CRC=00000000]
+    sth\add.h                                               [02-Jan-22 12:43  CRC=00000000]
 
-Source signature=3C4611BA
+Source signature=0A5C5D79
 
 Units:
-    C:\Users\derth\Documents\projects\pic-stuff\MyFirstProjectAtHome\main
+    C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main
 
 Compiler Settings:
     Processor:      PIC16F883

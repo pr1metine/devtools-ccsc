@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{Diagnostic, TextDocumentContentChangeEvent};
+use tower_lsp::lsp_types::Diagnostic;
 use tree_sitter::{Parser, Tree};
 
 use crate::docs::text_document_type::TextDocumentTypeTrait;

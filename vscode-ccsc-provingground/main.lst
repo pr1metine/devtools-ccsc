@@ -1,4 +1,4 @@
-CCS PCM C Compiler, Version 5.105Pd, 1               30-Dez-21 17:50
+CCS PCM C Compiler, Version 5.105Pd, 1               02-Jan-22 13:50
 Compiler operating in Evaluation Mode
 To obtain a fully enabled compiler visit www.ccsinfo.com/products
 
@@ -58,7 +58,10 @@ To obtain a fully enabled compiler visit www.ccsinfo.com/products
 001D:  BCF    0A.3
 001E:  GOTO   04D (RETURN)
 .................... 
+.................... #include "sth/add.c"
 .................... #include "sth/add.h"
+.................... int add(int a, int b);
+.................... 
 .................... 
 .................... int add(int a, int b) {
 .................... 	return a + b;

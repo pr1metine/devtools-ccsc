@@ -103,9 +103,12 @@ impl LanguageServer for server::Backend {
                 .collect()
         }
 
+        let mut err_paths = deconstruct_to_paths(params);
+        err_paths.sort();
+        err_paths.dedup();
         let diagnostics = {
             let mut inner = self.get_inner();
-            inner.insert_compiler_diagnostics(deconstruct_to_paths(params))
+            inner.insert_compiler_diagnostics(err_paths)
         };
 
         for (uri, diagnostic) in diagnostics {

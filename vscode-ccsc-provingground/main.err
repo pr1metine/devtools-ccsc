@@ -1,5 +1,5 @@
-Compiling C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main on 30-Dez-21 at 17:50
->>> Warning 202 "C:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main.c" Line 9(5,6): Variable never used:   c
-      Memory usage:   ROM=2%      RAM=3% - 4%
-      0 Errors,  1 Warnings.
-Build Successful.
+Compiling c:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main on 02-Jan-22 at 14:11
+--- Info 300 "c:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main.c" Line 9(5,6): More info:   First Declaration of c
+*** Error 31 "c:\Users\derth\IdeaProjects\lsp-ccs-c\vscode-ccsc-provingground\main.c" Line 12(5,6): Identifier is already used in this scope
+      1 Errors,  0 Warnings.
+Build Failed.
